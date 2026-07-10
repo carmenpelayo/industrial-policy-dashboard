@@ -43,7 +43,7 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 # ==========================================
 @st.cache_data
 def load_and_clean_data(uploaded_file):
-    df = pd.read_csv(uploaded_file)
+    df = pd.read_excel(uploaded_file)
     df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
     df = df.dropna(subset=["Announcement Date"])
     df = df[df["Levels of Policy Intervention"] != "Firm-specific"]
@@ -104,7 +104,7 @@ def apply_fractional_allocation(df, col_type, specific_mapping=None):
 # ==========================================
 st.title("🌐 NIPO Industrial Policy Dashboard")
 
-uploaded_file = st.file_uploader("Upload NIPO Dataset (CSV)", type="csv")
+uploaded_file = st.file_uploader("Upload NIPO Dataset (XLSX)", type="xlsx")
 
 if uploaded_file is not None:
     # Load Data
@@ -225,4 +225,4 @@ if uploaded_file is not None:
                 
                 st.pyplot(fig)
 else:
-    st.info("👋 Welcome to the NIPO Dashboard! Please upload your CSV dataset to begin.")
+    st.info("👋 Welcome to the NIPO Dashboard! Please upload your XLSX dataset to begin.")
