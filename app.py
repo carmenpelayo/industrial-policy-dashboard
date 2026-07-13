@@ -355,8 +355,8 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure the table")
-            st.caption("Choose the interventions to include in the table.")
+            st.markdown("### ⚙️ Configure the output table.")
+            st.caption("Choose the interventions to include in the output table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
@@ -406,7 +406,6 @@ if uploaded_file is not None or default_source.exists():
 
         with plot_col:
             st.markdown("### Results")
-            st.caption("Four comparable views of the selected measure. The first uses shared filters; the remaining charts inherit them unless overridden.")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
