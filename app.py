@@ -248,7 +248,7 @@ if uploaded_file is not None:
         
         drop_cols = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
         display_df = ins_df.drop(columns=[c for c in drop_cols if c in ins_df.columns], errors="ignore")
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, width='stretch', hide_index=True)
 
     # ------------------------------------------
     # INTERACTIVE VISUALIZATION GRID (2x2 Matrix)
@@ -293,7 +293,7 @@ if uploaded_file is not None:
 
         # Canvas Render Workspace
         st.markdown("---")
-        if st.button("Generate 2x2 Matrix Plots", type="primary", use_container_width=True):
+        if st.button("Generate 2x2 Matrix Plots", type="primary", width='stretch'):
             configs = [p1_config, p2_config, p3_config, p4_config]
             titles = ["Subplot 1 Profile", "Subplot 2 Profile", "Subplot 3 Profile", "Subplot 4 Profile"]
             
