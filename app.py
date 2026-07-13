@@ -195,7 +195,7 @@ if uploaded_file is not None:
         st.subheader("Filtered Raw Observations")
         st.write(f"Showing **{len(filtered_df):,}** policies based on criteria.")
         # Show all fields directly
-        st.dataframe(filtered_df.drop(columns=["Affected List"], errors="ignore"), use_container_width=True)
+        st.dataframe(filtered_df.drop(columns=["Affected List"], errors="ignore"), width='stretch')
 
     with tab2:
         st.subheader("Dynamic Plot Generator")
