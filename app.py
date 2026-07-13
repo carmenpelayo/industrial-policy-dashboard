@@ -310,7 +310,7 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    tab_inspect, tab_viz = st.tabs(["🔎 Data inspection", "📊 Visualization"])
+    tab_inspect, tab_viz = st.tabs(["🔎 Data Inspection", "📊 Visualization"])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
