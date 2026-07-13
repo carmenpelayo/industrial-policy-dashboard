@@ -66,6 +66,9 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 def load_source_data(uploaded_file):
     df = pd.read_excel(uploaded_file)
     df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
+    for date_col in ["Implementation Date", "Removal Date"]:
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
     df = df.dropna(subset=["Announcement Date"])
     df = df[df["Levels of Policy Intervention"] != "Firm-specific"]
     
@@ -149,6 +152,16 @@ def execute_filter_pipeline(df, config):
     if len(config.get("dates", [])) == 2:
         df_out = df_out[(df_out["Announcement Date"] >= pd.to_datetime(config["dates"][0])) & 
                         (df_out["Announcement Date"] <= pd.to_datetime(config["dates"][1]))]
+    for date_col, config_key in [("Implementation Date", "implementation_dates"), ("Removal Date", "removal_dates")]:
+        if date_col in df_out.columns and len(config.get(config_key, [])) == 2:
+            df_out = df_out[
+                df_out[date_col].isna() |
+                df_out[date_col].between(
+                    pd.to_datetime(config[config_key][0]),
+                    pd.to_datetime(config[config_key][1]),
+                    inclusive="both",
+                )
+            ]
     if config.get("gov_level"):
         df_out = df_out[df_out["Level of Government Implementation"].isin(config["gov_level"])]
     if config.get("trade_flow"):
@@ -229,7 +242,7 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 # 5. INLINE FILTER SELECTION MAPPING BUILDER
 # ==========================================
-def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False):
+def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
     all_imp = groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
@@ -242,14 +255,25 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
 
-    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
-    chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title")
+    def date_bounds(column):
+        if column not in df_source.columns:
+            return [df_source["Announcement Date"].min().date(), df_source["Announcement Date"].max().date()]
+        values = pd.to_datetime(df_source[column], errors="coerce").dropna()
+        return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
+
+    kw = st.text_input(
+        "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
+        help="Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
+    )
+    chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
 
     advanced = st.expander("More filters", expanded=not compact)
     with advanced:
+        implementation_dates = st.date_input("Implementation Date", get_fallback("implementation_dates", date_bounds("Implementation Date")), key=f"{key_prefix}_implementation_dates", help="Select the implementation-date range to include.")
+        removal_dates = st.date_input("Removal Date", get_fallback("removal_dates", date_bounds("Removal Date")), key=f"{key_prefix}_removal_dates", help="Select the removal-date range to include.")
         gov = st.multiselect("Government Level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
         flow = st.multiselect("Trade Flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
         assess = st.multiselect("Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
@@ -260,7 +284,9 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
         mots = st.multiselect("Motive", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
 
     return {
-        "keyword_search": kw, "title": chart_title, "dates": dt, "imp_jurisdiction": imp, "aff_jurisdiction": aff,
+        "keyword_search": kw, "title": chart_title, "dates": dt,
+        "implementation_dates": implementation_dates, "removal_dates": removal_dates,
+        "imp_jurisdiction": imp, "aff_jurisdiction": aff,
         "gov_level": gov, "trade_flow": flow, "assessments": assess, "hs_2d": hs2d, "cpc_2d": cpc2d,
         "policies": pols, "sectors": secs, "motives": mots
     }
@@ -279,7 +305,7 @@ def fill_missing_with_master(child_cfg, master_cfg):
 def saved_override_config(key_prefix):
     """Return a previously edited chart override without rendering its form."""
     fields = {
-        "keyword_search": "kw", "title": "title", "dates": "dt", "imp_jurisdiction": "imp",
+        "keyword_search": "kw", "title": "title", "dates": "dt", "implementation_dates": "implementation_dates", "removal_dates": "removal_dates", "imp_jurisdiction": "imp",
         "aff_jurisdiction": "aff", "gov_level": "gov", "trade_flow": "flow",
         "assessments": "assess", "hs_2d": "hs2d", "cpc_2d": "cpc2d",
         "policies": "pols", "sectors": "secs", "motives": "mots",
@@ -331,7 +357,7 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### Configure the data view")
             st.caption("Choose the interventions to include in the table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", compact=True)
+            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
@@ -362,18 +388,17 @@ if uploaded_file is not None or default_source.exists():
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
-            st.markdown("### Data Filters")
-            p1_raw = render_inline_filters(raw_df, "v_p1", compact=True)
-
-            st.markdown("#### Customize a chart")
-            chart_to_customize = st.selectbox("Chart to customize", ["Chart 2", "Chart 3", "Chart 4"], help="Leave all fields empty to use the shared filters exactly.")
-            override_prefix = {"Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
-            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=p1_raw, compact=True)
+            st.markdown("### Customize a chart")
+            chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit the current settings by default.")
+            override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
+            prior_master = saved_override_config("v_p1")
+            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_to_customize == "Chart 1" else prior_master, compact=True)
             st.caption("When you customize a chart, its settings become the defaults inherited by the other charts.")
             trigger_viz = st.button("Generate chart grid", type="primary", use_container_width=True)
 
             # Forms that are not currently open retain their prior choices in
             # session state, so a user can configure charts one at a time.
+            p1_raw = selected_override if chart_to_customize == "Chart 1" else saved_override_config("v_p1")
             p2_raw = selected_override if chart_to_customize == "Chart 2" else saved_override_config("v_p2")
             p3_raw = selected_override if chart_to_customize == "Chart 3" else saved_override_config("v_p3")
             p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
@@ -446,7 +471,7 @@ if uploaded_file is not None or default_source.exists():
                 legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45)
-            fig.update_yaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5)
+            fig.update_yaxes(title_text=metric_choice, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5)
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
