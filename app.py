@@ -5,6 +5,7 @@ import re
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import openpyxl
+from pathlib import Path
 
 # ==========================================
 # 1. CORE PALETTE & DICTIONARY LOOKUPS
@@ -88,7 +89,15 @@ def get_dynamic_palette(categories, category_type):
     base_corporate = [PRIMARY_COLORS["Electric Blue"], PRIMARY_COLORS["Serene Blue"]] + ACCENT_COLORS
     primary_cats = [c for c in categories if not str(c).startswith("Other")]
     
-    color_pool = base_corporate + sns.color_palette("Spectral", max(0, len(primary_cats) - len(base_corporate))).as_hex()
+    # Keep the app self-contained: this used to call sns.color_palette without
+    # importing seaborn, which caused the dashboard to fail as soon as a chart
+    # had more categories than the corporate palette.
+    extra_count = max(0, len(primary_cats) - len(base_corporate))
+    extra_colours = [
+        f"hsl({round(360 * i / max(extra_count, 1))}, 58%, 48%)"
+        for i in range(extra_count)
+    ]
+    color_pool = base_corporate + extra_colours
     palette_map = {}
     idx = 0
     for cat in categories:
@@ -213,7 +222,7 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 # 5. INLINE FILTER SELECTION MAPPING BUILDER
 # ==========================================
-def render_inline_filters(df_source, key_prefix, master_ref=None):
+def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
     all_imp = groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
@@ -226,18 +235,21 @@ def render_inline_filters(df_source, key_prefix, master_ref=None):
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
 
-    kw = st.text_input("Keyword Logic Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
-    dt = st.date_input("Date Range Window", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
-    imp = st.multiselect("Implementing Countries", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
-    aff = st.multiselect("Affected Countries", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
-    gov = st.multiselect("Government Level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
-    flow = st.multiselect("Trade Flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
-    assess = st.multiselect("Initial Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
-    hs2d = st.multiselect("HS 2-digit Product", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
-    cpc2d = st.multiselect("CPC 2-digit Product", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
-    pols = st.multiselect("Policy Flags", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
-    secs = st.multiselect("Sector Flags", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
-    mots = st.multiselect("Motive Flags", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
+    kw = st.text_input("Keyword logic search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
+    dt = st.date_input("Announcement date range", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
+    imp = st.multiselect("Implementing countries", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
+    aff = st.multiselect("Affected countries", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
+
+    advanced = st.expander("More filters", expanded=not compact)
+    with advanced:
+        gov = st.multiselect("Government level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
+        flow = st.multiselect("Trade flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
+        assess = st.multiselect("Initial assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
+        hs2d = st.multiselect("HS 2-digit product", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
+        cpc2d = st.multiselect("CPC 2-digit product", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
+        pols = st.multiselect("Policy flags", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
+        secs = st.multiselect("Sector flags", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
+        mots = st.multiselect("Motive flags", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
 
     return {
         "keyword_search": kw, "dates": dt, "imp_jurisdiction": imp, "aff_jurisdiction": aff,
@@ -256,14 +268,52 @@ def fill_missing_with_master(child_cfg, master_cfg):
             effective[k] = child_cfg[k] if child_cfg[k] else master_cfg[k]
     return effective
 
+def saved_override_config(key_prefix):
+    """Return a previously edited chart override without rendering its form."""
+    fields = {
+        "keyword_search": "kw", "dates": "dt", "imp_jurisdiction": "imp",
+        "aff_jurisdiction": "aff", "gov_level": "gov", "trade_flow": "flow",
+        "assessments": "assess", "hs_2d": "hs2d", "cpc_2d": "cpc2d",
+        "policies": "pols", "sectors": "secs", "motives": "mots",
+    }
+    return {
+        field: st.session_state.get(f"{key_prefix}_{suffix}", "" if field == "keyword_search" else [])
+        for field, suffix in fields.items()
+    }
+
 # ==========================================
 # 6. STREAMLIT APP FRAMEWORK WORKSPACE
 # ==========================================
-uploaded_file = st.file_uploader("Upload NIPO XLSX Source File", type="xlsx")
+st.set_page_config(page_title="NIPO Industrial Policy Explorer", layout="wide")
+st.markdown("""
+<style>
+    .stApp { background: #F7F8F8; }
+    .stMainBlockContainer, .block-container { max-width: none; padding: 2.5rem 4rem 3rem; }
+    .stAppHeader { display: none; }
+    div[data-testid="stHorizontalBlock"] { align-items: flex-start; gap: 1.5rem; }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        background: white; border: 1px solid #E2E6EA; border-radius: 10px;
+        padding: 1.5rem; box-shadow: 0 4px 8px rgba(0,0,0,.05);
+    }
+    div[data-testid="stExpander"] details { border: 0; }
+    div[data-testid="stExpander"] summary p { font-weight: 600; }
+    [data-testid="stTabs"] button { font-weight: 600; }
+</style>
+""", unsafe_allow_html=True)
 
-if uploaded_file is not None:
-    raw_df = load_source_data(uploaded_file)
-    tab_inspect, tab_viz = st.tabs(["🗃️ Data Inspector Hub", "📈 Matrix Visualization Grid"])
+st.title("NIPO Industrial Policy Explorer")
+st.caption("Explore and compare industrial policy interventions in the GTA NIPO database.")
+
+default_source = Path(__file__).with_name("GTA NIPO - January 2026.xlsx")
+uploaded_file = st.file_uploader(
+    "Use a different NIPO XLSX file (optional)", type="xlsx",
+    help="The January 2026 database bundled with this app is used by default."
+)
+source_file = uploaded_file if uploaded_file is not None else default_source
+
+if uploaded_file is not None or default_source.exists():
+    raw_df = load_source_data(source_file)
+    tab_inspect, tab_viz = st.tabs(["Data inspection", "Visualization"])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
@@ -271,15 +321,16 @@ if uploaded_file is not None:
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("#### Configuration Menu")
-            inspector_config = render_inline_filters(raw_df, "inspector")
+            st.markdown("### Configure data view")
+            st.caption("Choose the interventions to include in the table.")
+            inspector_config = render_inline_filters(raw_df, "inspector", compact=True)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
-            st.subheader("Raw Table Output Viewer")
+            st.markdown("### Data output")
             if trigger_inspect:
                 ins_df = execute_filter_pipeline(raw_df, inspector_config)
-                st.write(f"Observations Matched: **{len(ins_df):,}** rows")
+                st.metric("Matching interventions", f"{len(ins_df):,}")
                 drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
                 display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
@@ -290,44 +341,45 @@ if uploaded_file is not None:
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
     # ------------------------------------------
     with tab_viz:
-        st.subheader("Global Visualization Matrix Parameters")
-        g1, g2, g3, g4 = st.columns(4)
-        with g1: disaggregation = st.selectbox("Split Metric Series By", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)", "Sector: CPC 3-digit (v2.1)"])
-        with g2: freq_choice = st.selectbox("Time Window Frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
-        with g3: smoothing = st.slider("Smoothing Filter Window (Periods)", min_value=1, max_value=100, value=1)
-        with g4: metric_choice = st.selectbox("Apportionment Matrix Target", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
-        
-        freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
-        metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
-        
-        st.markdown("---")
-        st.markdown("#### Subplot Configuration Form Alignment Row")
-        
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.markdown("##### **Subplot 1 (Master)**")
-            p1_raw = render_inline_filters(raw_df, "v_p1")
-        with c2:
-            st.markdown("##### **Subplot 2**")
-            p2_raw = render_inline_filters(raw_df, "v_p2")
-        with c3:
-            st.markdown("##### **Subplot 3**")
-            p3_raw = render_inline_filters(raw_df, "v_p3")
-        with c4:
-            st.markdown("##### **Subplot 4**")
-            p4_raw = render_inline_filters(raw_df, "v_p4")
+        filter_col, plot_col = st.columns([1, 3])
+        with filter_col:
+            st.markdown("### Configure chart")
+            st.caption("Set the shared metric and filters first. Each chart inherits these settings unless you add an override below.")
+            disaggregation = st.selectbox("Split series by", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)", "Sector: CPC 3-digit (v2.1)"])
+            freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
+            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
+            smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
+
+            st.markdown("#### Shared filters")
+            p1_raw = render_inline_filters(raw_df, "v_p1", compact=True)
+
+            st.markdown("#### Optional chart overrides")
+            chart_to_customize = st.selectbox("Chart to customize", ["Chart 2", "Chart 3", "Chart 4"], help="Leave all fields empty to use the shared filters exactly.")
+            override_prefix = {"Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
+            selected_override = render_inline_filters(raw_df, override_prefix, compact=True)
+            st.caption("To customize another chart, select it above. Its choices are retained.")
+            trigger_viz = st.button("Generate chart grid", type="primary", use_container_width=True)
+
+            # Forms that are not currently open retain their prior choices in
+            # session state, so a user can configure charts one at a time.
+            p2_raw = selected_override if chart_to_customize == "Chart 2" else saved_override_config("v_p2")
+            p3_raw = selected_override if chart_to_customize == "Chart 3" else saved_override_config("v_p3")
+            p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
+
+        with plot_col:
+            st.markdown("### Visualization output")
+            st.caption("Four comparable views of the selected measure. The first uses shared filters; the remaining charts inherit them unless overridden.")
+            freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
+            metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
         p1_config = fill_missing_with_master(p1_raw, p1_raw)
         p2_config = fill_missing_with_master(p2_raw, p1_config)
         p3_config = fill_missing_with_master(p3_raw, p1_config)
         p4_config = fill_missing_with_master(p4_raw, p1_config)
         
-        st.markdown("---")
-        trigger_viz = st.button("Generate Figures Matrix", type="primary", use_container_width=True)
-        
         if trigger_viz:
             configs = [p1_config, p2_config, p3_config, p4_config]
-            titles = ["Subplot 1 Matrix Profile", "Subplot 2 Matrix Profile", "Subplot 3 Matrix Profile", "Subplot 4 Matrix Profile"]
+            titles = ["Chart 1 · shared filters", "Chart 2", "Chart 3", "Chart 4"]
             
             fig = make_subplots(rows=2, cols=2, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
             all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
@@ -382,6 +434,10 @@ if uploaded_file is not None:
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45)
             fig.update_yaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5)
             
-            st.plotly_chart(fig, use_container_width=True)
+            with plot_col:
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            with plot_col:
+                st.info("Set the shared filters and select **Generate chart grid** to create the comparison.")
 else:
-    st.info("👋 Welcome! Please upload your source XLSX dataset file to boot up the interactive workspace.")
+    st.warning("The bundled January 2026 database was not found. Upload a NIPO XLSX file to start exploring.")
