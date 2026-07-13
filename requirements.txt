@@ -1,8 +1,6 @@
-streamlit
+streamlit>=1.30.0
 pandas
 numpy
-matplotlib
-seaborn
 openpyxl
 plotly
-extra-streamlit-components
+streamlit-pdf-viewer
