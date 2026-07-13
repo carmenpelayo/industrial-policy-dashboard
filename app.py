@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import openpyxl
+import extra_streamlit_components as stx
 
 st.set_page_config(page_title="NIPO Industrial Policy Dashboard", layout="wide", page_icon="📊")
 
