@@ -353,7 +353,11 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### Chart Settings")
             st.caption("Set the shared metric and filters first. Each chart inherits these settings unless you add an override below.")
-            disaggregation = st.selectbox("Split series by", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Sector (CPC-v2.1)", "Product (HS-2022)"])
+            disaggregation = st.selectbox("Split series by", [
+                "Sector", "Motive", "Policy Instrument", "Assessment Type",
+                "Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)",
+                "Sector: CPC 3-digit (v2.1)",
+            ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
