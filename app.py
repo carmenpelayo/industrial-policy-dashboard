@@ -182,7 +182,7 @@ def execute_filter_pipeline(df, config):
         else:
             df_out = df_out[df_out[config["motives"]].any(axis=1)]
             
-    if config.get("keyword_search", help="Enter the keywords to be included in the intervention title. For example: (Artificial Intelligence OR AI) AND (Semiconductor OR Semiconductors). Please note the keyword search is case-insensitive."):
+    if config.get("keyword_search"):
         df_out = df_out[df_out["Title"].apply(lambda x: evaluate_boolean_query(x, config["keyword_search"]))]
         
     return df_out
@@ -235,7 +235,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
 
-    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
+    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw", help="Enter the keywords to be included in the intervention title. For example: (Artificial Intelligence OR AI) AND (Semiconductor OR Semiconductors). Please note the keyword search is case-insensitive.")
     dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
