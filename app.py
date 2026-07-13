@@ -361,7 +361,7 @@ if uploaded_file is not None or default_source.exists():
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
-            st.markdown("### Results")
+            st.markdown("### ⭐ Results")
             if trigger_inspect:
                 ins_df = execute_filter_pipeline(raw_df, inspector_config)
                 st.metric("Matching interventions", f"{len(ins_df):,}")
@@ -405,7 +405,7 @@ if uploaded_file is not None or default_source.exists():
             p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
 
         with plot_col:
-            st.markdown("### Results")
+            st.markdown("### ⭐ Results")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
