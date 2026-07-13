@@ -7,6 +7,11 @@ from plotly.subplots import make_subplots
 import openpyxl
 from pathlib import Path
 
+try:
+    from streamlit_pdf_viewer import pdf_viewer
+except ImportError:  # The app still starts if the optional viewer is unavailable.
+    pdf_viewer = None
+
 # ==========================================
 # 1. CORE PALETTE & DICTIONARY LOOKUPS
 # ==========================================
@@ -339,7 +344,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("BBVA Research | Industrial Policy Explorer")
-st.caption("Explore and analyze industrial policy interventions worldwide. Based on Global Trade Alert's New Industrial Policy Observatory (NIPO) database.")
+st.markdown("Explore and analyze industrial policy interventions worldwide. Based on [Global Trade Alert's New Industrial Policy Observatory (NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo).")
 
 default_source = Path(__file__).with_name("GTA NIPO - January 2026.xlsx")
 uploaded_file = st.file_uploader("Please upload a NIPO XLSX file.", type="xlsx")
@@ -347,7 +352,7 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    tab_inspect, tab_viz = st.tabs(["🔎 Data inspection", "📊 Visualization"])
+    tab_inspect, tab_viz, tab_methodology = st.tabs(["🔎 Data inspection", "📊 Visualization", "❓ Methodology"])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
@@ -478,5 +483,46 @@ if uploaded_file is not None or default_source.exists():
         else:
             with plot_col:
                 st.info("Set the shared filters and select **Generate chart grid** to create the comparison.")
+
+    # ------------------------------------------
+    # METHODOLOGY TAB
+    # ------------------------------------------
+    with tab_methodology:
+        summary_col, pdf_col = st.columns([1, 1])
+        with summary_col:
+            st.markdown("### NIPO methodology")
+            st.markdown(
+                """
+                The [Global Trade Alert New Industrial Policy Observatory (NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo) tracks government interventions that shape international trade and competition. The database records when a measure is announced, implemented, and removed, as well as the jurisdictions, sectors, products, policy instruments, motives, and trade flows affected.
+
+                The methodology explains how interventions are identified and coded, how policy measures are classified, and how their trade and subsidy values are recorded. It also describes the assessment framework used to distinguish liberalising and distortive interventions and the treatment of measures affecting multiple products or jurisdictions.
+
+                Use the document viewer to the right to browse the complete methodology.
+                """
+            )
+        with pdf_col:
+            methodology_path = Path(__file__).with_name("1774854873454_NIPO - Methodology.pdf")
+
+            @st.cache_data
+            def load_pdf_bytes(path):
+                return path.read_bytes()
+
+            if methodology_path.exists():
+                methodology_bytes = load_pdf_bytes(methodology_path)
+                if pdf_viewer is not None:
+                    pdf_viewer(
+                        methodology_bytes, height=700, viewer_align="center",
+                        show_page_separator=True, render_text=True, resolution_boost=2,
+                    )
+                elif hasattr(st, "pdf"):
+                    st.pdf(methodology_bytes, height=700)
+                else:
+                    st.warning("Install streamlit-pdf-viewer to enable the embedded PDF viewer.")
+                st.download_button(
+                    "Download methodology PDF", methodology_bytes,
+                    file_name=methodology_path.name, mime="application/pdf",
+                )
+            else:
+                st.error("The methodology PDF could not be found in the industrial-policy folder.")
 else:
     st.warning("Please upload the NIPO XLSX file to start exploring.")
