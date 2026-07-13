@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import seaborn as sns
 import openpyxl
-import extra_streamlit_components as stx
 
 # ==========================================
 # 1. BRANDING, CONFIGURATIONS & LOOKUPS
@@ -64,7 +63,7 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 # ==========================================
 @st.cache_data
 def load_source_data(uploaded_file):
-    df = pd.read_csv(uploaded_file)
+    df = pd.read_excel(uploaded_file)
     df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
     df = df.dropna(subset=["Announcement Date"])
     df = df[df["Levels of Policy Intervention"] != "Firm-specific"]
@@ -263,7 +262,7 @@ def fill_missing_with_master(child_cfg, master_cfg):
 # ==========================================
 # 5. DASHBOARD FRAMEWORK APPLICATION INTERFACE
 # ==========================================
-uploaded_file = st.file_uploader("Upload NIPO CSV Dataset File", type="csv")
+uploaded_file = st.file_uploader("Upload NIPO XLSX Dataset File", type="xlsx")
 
 if uploaded_file is not None:
     raw_df = load_source_data(uploaded_file)
@@ -394,4 +393,4 @@ if uploaded_file is not None:
             
             st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("👋 Welcome! Please upload your source CSV dataset file to boot up the interactive workspace.")
+    st.info("👋 Welcome! Please upload your source XLSX dataset file to boot up the interactive workspace.")
