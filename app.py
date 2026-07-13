@@ -11,6 +11,8 @@ from pathlib import Path
 # 1. CORE PALETTE & DICTIONARY LOOKUPS
 # ==========================================
 PRIMARY_COLORS = {"Electric Blue": "#001391", "Serene Blue": "#85C8FF", "Midnight": "#060E46"}
+# BBVA digital palette (used for controls and chart accents).
+BBVA_NAVY, BBVA_BLUE, BBVA_AZURE = "#072146", "#004481", "#2DCCCD"
 ACCENT_COLORS = ["#88E783", "#FFB56B", "#FFE761", "#8BE1E9", "#9694FF"]
 GREYS = {"Sand": "#F7F8F8", "Grey-1": "#E2E6EA", "Grey-2": "#CAD1D8", "Grey-3": "#ADB8C2", "Grey-4": "#46536D"}
 ASSESSMENT_COLORS = {"Liberalising": "#1E5631", "Distortive": "#B22222"}
@@ -129,7 +131,12 @@ def evaluate_boolean_query(title_text, query_str):
         else:
             term = part.strip().lower()
             if term == "": continue
-            is_match = "True" if term in target_lower else "False"
+            # Match complete words/phrases.  In particular, searching for
+            # ``AI`` must not match the ``ai`` inside words such as "certain".
+            is_match = "True" if re.search(
+                rf"(?<!\w){re.escape(term)}(?!\w)", target_lower,
+                flags=re.IGNORECASE,
+            ) else "False"
             new_parts.append(is_match)
             
     try:
@@ -235,7 +242,8 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
 
-    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw", help="Enter the keywords to be included in the intervention title. For example: (Artificial Intelligence OR AI) AND (Semiconductor OR Semiconductors). Please note the keyword search is case-insensitive.")
+    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
+    chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title")
     dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
@@ -252,7 +260,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
         mots = st.multiselect("Motive", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
 
     return {
-        "keyword_search": kw, "dates": dt, "imp_jurisdiction": imp, "aff_jurisdiction": aff,
+        "keyword_search": kw, "title": chart_title, "dates": dt, "imp_jurisdiction": imp, "aff_jurisdiction": aff,
         "gov_level": gov, "trade_flow": flow, "assessments": assess, "hs_2d": hs2d, "cpc_2d": cpc2d,
         "policies": pols, "sectors": secs, "motives": mots
     }
@@ -271,7 +279,7 @@ def fill_missing_with_master(child_cfg, master_cfg):
 def saved_override_config(key_prefix):
     """Return a previously edited chart override without rendering its form."""
     fields = {
-        "keyword_search": "kw", "dates": "dt", "imp_jurisdiction": "imp",
+        "keyword_search": "kw", "title": "title", "dates": "dt", "imp_jurisdiction": "imp",
         "aff_jurisdiction": "aff", "gov_level": "gov", "trade_flow": "flow",
         "assessments": "assess", "hs_2d": "hs2d", "cpc_2d": "cpc2d",
         "policies": "pols", "sectors": "secs", "motives": "mots",
@@ -295,6 +303,9 @@ st.markdown("""
         background: white; border: 1px solid #E2E6EA; border-radius: 10px;
         padding: 1.5rem; box-shadow: 0 4px 8px rgba(0,0,0,.05);
     }
+    button[kind="primary"] { background: #072146 !important; border-color: #072146 !important; color: white !important; }
+    button[kind="primary"]:hover { background: #004481 !important; border-color: #004481 !important; }
+    div[data-baseweb="select"] > div:focus-within { border-color: #004481 !important; box-shadow: 0 0 0 1px #004481 !important; }
     div[data-testid="stExpander"] details { border: 0; }
     div[data-testid="stExpander"] summary p { font-weight: 600; }
     [data-testid="stTabs"] button { font-weight: 600; }
@@ -310,7 +321,7 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    tab_inspect, tab_viz = st.tabs(["🔎 Data Inspection", "📊 Visualization"])
+    tab_inspect, tab_viz = st.tabs(["🔎 Data inspection", "📊 Visualization"])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
@@ -318,13 +329,13 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure the table")
+            st.markdown("### Configure the data view")
             st.caption("Choose the interventions to include in the table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
-            st.markdown("### Results")
+            st.markdown("### Data output")
             if trigger_inspect:
                 ins_df = execute_filter_pipeline(raw_df, inspector_config)
                 st.metric("Matching interventions", f"{len(ins_df):,}")
@@ -347,14 +358,14 @@ if uploaded_file is not None or default_source.exists():
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
-            st.markdown("#### Data Filters")
+            st.markdown("### Data Filters")
             p1_raw = render_inline_filters(raw_df, "v_p1", compact=True)
 
-            st.markdown("#### [Optional] chart overrides")
+            st.markdown("#### Customize a chart")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 2", "Chart 3", "Chart 4"], help="Leave all fields empty to use the shared filters exactly.")
             override_prefix = {"Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
-            selected_override = render_inline_filters(raw_df, override_prefix, compact=True)
-            st.caption("To customize another chart, select it above. Its choices are retained.")
+            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=p1_raw, compact=True)
+            st.caption("When you customize a chart, its settings become the defaults inherited by the other charts.")
             trigger_viz = st.button("Generate chart grid", type="primary", use_container_width=True)
 
             # Forms that are not currently open retain their prior choices in
@@ -364,19 +375,21 @@ if uploaded_file is not None or default_source.exists():
             p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
 
         with plot_col:
-            st.markdown("### Results")
+            st.markdown("### Visualization output")
             st.caption("Four comparable views of the selected measure. The first uses shared filters; the remaining charts inherit them unless overridden.")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
         p1_config = fill_missing_with_master(p1_raw, p1_raw)
-        p2_config = fill_missing_with_master(p2_raw, p1_config)
-        p3_config = fill_missing_with_master(p3_raw, p1_config)
-        p4_config = fill_missing_with_master(p4_raw, p1_config)
+        selected_effective = fill_missing_with_master(selected_override, p1_config)
+        inheritance_master = selected_effective
+        p2_config = selected_effective if chart_to_customize == "Chart 2" else fill_missing_with_master(p2_raw, inheritance_master)
+        p3_config = selected_effective if chart_to_customize == "Chart 3" else fill_missing_with_master(p3_raw, inheritance_master)
+        p4_config = selected_effective if chart_to_customize == "Chart 4" else fill_missing_with_master(p4_raw, inheritance_master)
         
         if trigger_viz:
             configs = [p1_config, p2_config, p3_config, p4_config]
-            titles = ["Chart 1", "Chart 2", "Chart 3", "Chart 4"]
+            titles = [cfg.get("title") or f"Chart {idx + 1}" for idx, cfg in enumerate(configs)]
             
             fig = make_subplots(rows=2, cols=2, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
             all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
