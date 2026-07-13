@@ -182,7 +182,7 @@ def execute_filter_pipeline(df, config):
         else:
             df_out = df_out[df_out[config["motives"]].any(axis=1)]
             
-    if config.get("keyword_search"):
+    if config.get("keyword_search", help="Enter the keywords to be included in the intervention title. For example: (Artificial Intelligence OR AI) AND (Semiconductor OR Semiconductors). Please note the keyword search is case-insensitive."):
         df_out = df_out[df_out["Title"].apply(lambda x: evaluate_boolean_query(x, config["keyword_search"]))]
         
     return df_out
@@ -235,21 +235,21 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False)
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
 
-    kw = st.text_input("Keyword logic search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
-    dt = st.date_input("Announcement date range", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
-    imp = st.multiselect("Implementing countries", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
-    aff = st.multiselect("Affected countries", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
+    kw = st.text_input("Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw")
+    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
+    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
+    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
 
     advanced = st.expander("More filters", expanded=not compact)
     with advanced:
-        gov = st.multiselect("Government level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
-        flow = st.multiselect("Trade flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
-        assess = st.multiselect("Initial assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
-        hs2d = st.multiselect("HS 2-digit product", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
-        cpc2d = st.multiselect("CPC 2-digit product", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
-        pols = st.multiselect("Policy flags", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
-        secs = st.multiselect("Sector flags", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
-        mots = st.multiselect("Motive flags", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
+        gov = st.multiselect("Government Level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
+        flow = st.multiselect("Trade Flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
+        assess = st.multiselect("Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
+        hs2d = st.multiselect("Product (2-digit HS 2022)", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
+        cpc2d = st.multiselect("Product (2-digit CPC v2.1)", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
+        pols = st.multiselect("Policy Instrument", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
+        secs = st.multiselect("Sector", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
+        mots = st.multiselect("Motive", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
 
     return {
         "keyword_search": kw, "dates": dt, "imp_jurisdiction": imp, "aff_jurisdiction": aff,
@@ -301,19 +301,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("NIPO Industrial Policy Explorer")
-st.caption("Explore and compare industrial policy interventions in the GTA NIPO database.")
+st.title("BBVA Research | Industrial Policy Explorer")
+st.caption("Explore and analyze industrial policy interventions worldwide. Based on Global Trade Alert's New Industrial Policy Observatory (NIPO) database.")
 
 default_source = Path(__file__).with_name("GTA NIPO - January 2026.xlsx")
-uploaded_file = st.file_uploader(
-    "Use a different NIPO XLSX file (optional)", type="xlsx",
-    help="The January 2026 database bundled with this app is used by default."
-)
+uploaded_file = st.file_uploader("Please upload a NIPO XLSX file.", type="xlsx")
 source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    tab_inspect, tab_viz = st.tabs(["Data inspection", "Visualization"])
+    tab_inspect, tab_viz = st.tabs(["🔎 Data inspection", "📊 Visualization"])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
@@ -321,7 +318,7 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure data view")
+            st.markdown("### Configure the data view")
             st.caption("Choose the interventions to include in the table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
@@ -343,17 +340,17 @@ if uploaded_file is not None or default_source.exists():
     with tab_viz:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure chart")
+            st.markdown("### 1️⃣ Configure the chart")
             st.caption("Set the shared metric and filters first. Each chart inherits these settings unless you add an override below.")
-            disaggregation = st.selectbox("Split series by", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)", "Sector: CPC 3-digit (v2.1)"])
+            disaggregation = st.selectbox("Split series by", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Sector (CPC-v2.1)", "Product (HS-2022)"])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
-            st.markdown("#### Shared filters")
+            st.markdown("#### 2️⃣ Configure the shared filters")
             p1_raw = render_inline_filters(raw_df, "v_p1", compact=True)
 
-            st.markdown("#### Optional chart overrides")
+            st.markdown("#### 3️⃣ Configure the optional chart overrides")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 2", "Chart 3", "Chart 4"], help="Leave all fields empty to use the shared filters exactly.")
             override_prefix = {"Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
             selected_override = render_inline_filters(raw_df, override_prefix, compact=True)
@@ -379,7 +376,7 @@ if uploaded_file is not None or default_source.exists():
         
         if trigger_viz:
             configs = [p1_config, p2_config, p3_config, p4_config]
-            titles = ["Chart 1 · shared filters", "Chart 2", "Chart 3", "Chart 4"]
+            titles = ["Chart 1", "Chart 2", "Chart 3", "Chart 4"]
             
             fig = make_subplots(rows=2, cols=2, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
             all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
@@ -440,4 +437,4 @@ if uploaded_file is not None or default_source.exists():
             with plot_col:
                 st.info("Set the shared filters and select **Generate chart grid** to create the comparison.")
 else:
-    st.warning("The bundled January 2026 database was not found. Upload a NIPO XLSX file to start exploring.")
+    st.warning("Please upload the NIPO XLSX file to start exploring.")
