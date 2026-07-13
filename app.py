@@ -318,13 +318,13 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure the data view")
+            st.markdown("### Configure the table")
             st.caption("Choose the interventions to include in the table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
-            st.markdown("### Data output")
+            st.markdown("### Results")
             if trigger_inspect:
                 ins_df = execute_filter_pipeline(raw_df, inspector_config)
                 st.metric("Matching interventions", f"{len(ins_df):,}")
@@ -340,17 +340,17 @@ if uploaded_file is not None or default_source.exists():
     with tab_viz:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### 1️⃣ Configure the chart")
+            st.markdown("### Chart Settings")
             st.caption("Set the shared metric and filters first. Each chart inherits these settings unless you add an override below.")
             disaggregation = st.selectbox("Split series by", ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Sector (CPC-v2.1)", "Product (HS-2022)"])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
-            st.markdown("#### 2️⃣ Configure the shared filters")
+            st.markdown("#### Data Filters")
             p1_raw = render_inline_filters(raw_df, "v_p1", compact=True)
 
-            st.markdown("#### 3️⃣ Configure the optional chart overrides")
+            st.markdown("#### [Optional] chart overrides")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 2", "Chart 3", "Chart 4"], help="Leave all fields empty to use the shared filters exactly.")
             override_prefix = {"Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
             selected_override = render_inline_filters(raw_df, override_prefix, compact=True)
@@ -364,7 +364,7 @@ if uploaded_file is not None or default_source.exists():
             p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
 
         with plot_col:
-            st.markdown("### Visualization output")
+            st.markdown("### Results")
             st.caption("Four comparable views of the selected measure. The first uses shared filters; the remaining charts inherit them unless overridden.")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
