@@ -60,21 +60,24 @@ HS_PRODUCTS_1D = {
 }
 
 HS_SECTIONS = {
-    **{code: "Live animals; Animal products" for code in ["01", "02", "03", "04", "05"]},
-    **{code: "Vegetable products" for code in ["06", "07", "08", "09", "10", "11", "12", "13", "14"]},
-    **{code: "Food, beverages & tobacco" for code in ["15", "16", "17", "18", "19", "20", "21", "22", "23", "24"]},
-    **{code: "Mineral products" for code in ["25", "26", "27"]},
-    **{code: "Chemicals" for code in ["28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38"]},
-    **{code: "Plastics & rubber" for code in ["39", "40"]},
-    **{code: "Wood" for code in ["44", "45", "46", "47", "48", "49"]},
-    **{code: "Textiles & apparel; Leather" for code in [str(i).zfill(2) for i in range(41, 44)] + [str(i).zfill(2) for i in range(50, 68)]},
-    **{code: "Stone, glass & precious metals" for code in ["68", "69", "70", "71"]},
-    **{code: "Base metals" for code in [str(i).zfill(2) for i in range(72, 84)]},
-    **{code: "Machinery & equipment" for code in ["84", "85"]},
-    **{code: "Vehicles & transport equipment" for code in ["86", "87", "88", "89"]},
-    **{code: "Miscellaneous (Furniture, Optical, Musical, etc.)" for code in ["90", "91", "92", "94", "95", "96"]},
-    "93": "Arms & ammunition", "97": "Art",
+    ("01", "02", "03", "04", "05"): "Live animals; Animal products",
+    tuple(str(i).zfill(2) for i in range(6, 15)): "Vegetable products",
+    tuple(str(i).zfill(2) for i in range(15, 25)): "Food, beverages & tobacco",
+    ("25", "26", "27"): "Mineral products",
+    tuple(str(i).zfill(2) for i in range(28, 39)): "Chemicals",
+    ("39", "40"): "Plastics & rubber",
+    ("44", "45", "46", "47", "48", "49"): "Wood",
+    tuple([str(i).zfill(2) for i in range(41, 44)] + [str(i).zfill(2) for i in range(50, 68)]): "Textiles & apparel; Leather",
+    ("68", "69", "70", "71"): "Stone, glass & precious metals",
+    tuple(str(i).zfill(2) for i in range(72, 84)): "Base metals",
+    ("84", "85"): "Machinery & equipment",
+    ("86", "87", "88", "89"): "Vehicles & transport equipment",
+    ("90", "91", "92", "94", "95", "96"): "Miscellaneous (Furniture, Optical, Musical, etc.)",
+    ("93",): "Arms & ammunition", ("97",): "Art",
 }
+
+HS_SECTION_BY_CODE = {code: label for codes, label in HS_SECTIONS.items() for code in codes}
+HS_SECTION_CODES = {label: set(codes) for codes, label in HS_SECTIONS.items()}
 
 COUNTRY_GROUPS = {
     "G-7": ["United States of America", "United Kingdom", "Germany", "France", "Italy", "Japan", "Canada"],
@@ -219,7 +222,7 @@ def execute_filter_pipeline(df, config):
         df_out = df_out[df_out["Affected List"].apply(lambda x: any(i in resolved_aff for i in x))]
         
     if config.get("hs_2d"):
-        codes = [item.split("(")[1].replace(")", "").strip() for item in config["hs_2d"]]
+        codes = set().union(*(HS_SECTION_CODES.get(item, set()) for item in config["hs_2d"]))
         df_out = df_out[df_out["Product: HS 6-digit (2022)"].apply(lambda x: any(c in [t.strip()[:2].zfill(2) for t in str(x).split(",") if t.strip()] for c in codes))]
     if config.get("cpc_2d"):
         codes = [item.split("(")[1].replace(")", "").strip() for item in config["cpc_2d"]]
@@ -260,7 +263,7 @@ def apply_fractional_allocation(df, col_type):
                     f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} ({t[:1]})" for t in tokens
                 ]))
             return list(set([
-                f"{HS_SECTIONS.get(t[:2], 'Other HS products')} ({t[:2].zfill(2)})" for t in tokens
+                HS_SECTION_BY_CODE.get(t[:2].zfill(2), "Other HS products") for t in tokens
             ]))
             
         df_temp["Active_Categories"] = df_temp[target_col].apply(split_codes)
@@ -288,7 +291,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
-    hs_opts = sorted({f"{label} ({code})" for code, label in HS_SECTIONS.items()})
+    hs_opts = list(dict.fromkeys(HS_SECTIONS.values()))
     cpc_opts = [f"{v} ({k})" for k, v in CPC_SECTIONS.items()]
 
     def get_fallback(field, default):
