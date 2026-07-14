@@ -408,9 +408,13 @@ if uploaded_file is not None or default_source.exists():
             st.markdown("### 2️⃣ Customize the subplots.")
             st.caption("Now configure the individual subplots to be displayed.")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
+            chart_number = int(chart_to_customize.split()[-1])
+            saved_configs = st.session_state.get("saved_subplot_configs", {})
             override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
-            prior_master = st.session_state.get("saved_subplot_configs", {}).get(1) or saved_override_config("v_p1")
-            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_to_customize == "Chart 1" else prior_master, compact=True)
+            # Saved child settings take precedence over Chart 1 inheritance.
+            # A child inherits Chart 1 only until it has been saved once.
+            child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
+            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_number == 1 else child_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
@@ -422,7 +426,6 @@ if uploaded_file is not None or default_source.exists():
         if "saved_subplot_configs" not in st.session_state:
             st.session_state.saved_subplot_configs = {}
 
-        chart_number = int(chart_to_customize.split()[-1])
         p1_config = selected_override if chart_number == 1 else st.session_state.get("saved_subplot_configs", {}).get(1, saved_override_config("v_p1"))
         p1_config = fill_missing_with_master(p1_config, p1_config)
         selected_effective = (
