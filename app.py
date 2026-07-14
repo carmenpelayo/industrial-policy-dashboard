@@ -46,6 +46,15 @@ HS_PRODUCTS_2D = {
     "85": "Electrical Machinery", "87": "Vehicles", "88": "Aircraft", "90": "Optical & Medical Instruments"
 }
 
+# Broad one-digit HS group labels used by the visualization selector.
+HS_PRODUCTS_1D = {
+    "0": "Live animals & animal products", "1": "Vegetable products",
+    "2": "Foodstuffs", "3": "Mineral products", "4": "Chemicals",
+    "5": "Plastics, rubber & leather", "6": "Textiles & apparel",
+    "7": "Stone, glass & precious metals", "8": "Base metals",
+    "9": "Machinery, transport & other goods",
+}
+
 COUNTRY_GROUPS = {
     "G-7": ["United States of America", "United Kingdom", "Germany", "France", "Italy", "Japan", "Canada"],
     "G-20": ["United States of America", "United Kingdom", "Germany", "France", "Italy", "Japan", "Canada", "Argentina", "Australia", "Brazil", "China", "India", "Indonesia", "Mexico", "Saudi Arabia", "South Africa", "South Korea", "Turkey", "Russia"],
@@ -217,8 +226,8 @@ def apply_fractional_allocation(df, col_type):
     if col_type == "Assessment Type":
         df_temp["Active_Categories"] = df_temp["Initial Assessment"].apply(lambda x: [x] if x in ["Liberalising", "Distortive"] else ["Other Assessments"])
         df_temp["Denominator"] = 1.0
-    elif col_type in ["Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)", "Sector: CPC 3-digit (v2.1)"]:
-        target_col = "Sector: CPC 3-digit (v2.1)" if col_type in ["Product (CPC v2.1 Sectors)", "Sector: CPC 3-digit (v2.1)"] else "Product: HS 6-digit (2022)"
+    elif col_type in ["Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]:
+        target_col = "Sector: CPC 3-digit (v2.1)" if col_type == "Product (CPC v2.1 Sectors)" else "Product: HS 6-digit (2022)"
         
         # DEFINED INNER FUNCTION FOR SYSTEM ALLOCATIONS
         def split_codes(val):
@@ -226,8 +235,10 @@ def apply_fractional_allocation(df, col_type):
             if val.upper() in ["NAN", "NONE", ""]: return [f"Other {col_type}"]
             tokens = list(set([t.strip() for t in val.split(",") if t.strip()]))
             if col_type == "Product (CPC v2.1 Sectors)":
-                return list(set([CPC_SECTIONS.get(t[:1], "Other Sections") for t in tokens]))
-            return [f"CPC {t[:3].zfill(3)}" for t in tokens] if col_type == "Sector: CPC 3-digit (v2.1)" else [f"HS {t[:2].zfill(2)}" for t in tokens]
+                return list(set([f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} (CPC-{t[:2].zfill(2)})" for t in tokens]))
+            # The database stores full HS codes; the requested one-digit view
+            # uses the chapter prefix shown in the UI (e.g. HS-01).
+            return list(set([f"{HS_PRODUCTS_2D.get(t[:2].zfill(2), HS_PRODUCTS_1D.get(t[:1], 'Other HS products'))} (HS-{t[:2].zfill(2)})" for t in tokens]))
             
         df_temp["Active_Categories"] = df_temp[target_col].apply(split_codes)
         df_temp["Denominator"] = df_temp["Active_Categories"].apply(len)
@@ -266,11 +277,11 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
         return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
+    chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     kw = st.text_input(
         "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
         help="Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
     )
-    chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
@@ -386,8 +397,7 @@ if uploaded_file is not None or default_source.exists():
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
                 "Sector", "Motive", "Policy Instrument", "Assessment Type",
-                "Product (CPC v2.1 Sectors)", "Product: HS 6-digit (2022)",
-                "Sector: CPC 3-digit (v2.1)",
+                "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
@@ -397,7 +407,7 @@ if uploaded_file is not None or default_source.exists():
             st.caption("Now configure the individual subplots to be displayed.")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
             override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
-            prior_master = saved_override_config("v_p1")
+            prior_master = st.session_state.get("saved_subplot_configs", {}).get(1) or saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_to_customize == "Chart 1" else prior_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
@@ -411,7 +421,7 @@ if uploaded_file is not None or default_source.exists():
             st.session_state.saved_subplot_configs = {}
 
         chart_number = int(chart_to_customize.split()[-1])
-        p1_config = selected_override if chart_number == 1 else saved_override_config("v_p1")
+        p1_config = selected_override if chart_number == 1 else st.session_state.get("saved_subplot_configs", {}).get(1, saved_override_config("v_p1"))
         p1_config = fill_missing_with_master(p1_config, p1_config)
         selected_effective = (
             p1_config if chart_number == 1
@@ -437,7 +447,7 @@ if uploaded_file is not None or default_source.exists():
             titles = [cfg.get("title") or f"Chart {number}" for number, cfg in zip(chart_numbers, configs)]
             chart_count = len(configs)
             rows, cols = (1, 1) if chart_count == 1 else ((1, 2) if chart_count == 2 else (2, 2))
-            fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
+            fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.14, horizontal_spacing=0.16)
             all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
             
             global_categories = set()
@@ -481,14 +491,20 @@ if uploaded_file is not None or default_source.exists():
                         row=row, col=col
                     )
             
+            metric_axis_label = {
+                "Policy Count": "Policy Count",
+                "Subsidy USD Amount": "Subsidy (USD million)",
+                "Trade Covered USD Amount": "Trade covered (USD million)",
+                "Combined USD Amount": "Combined (USD million)",
+            }[metric_choice]
             fig.update_layout(
                 barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
                 paper_bgcolor="white", plot_bgcolor="white",
                 margin=dict(l=50, r=30, t=60, b=100),
                 legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
             )
-            fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45)
-            fig.update_yaxes(title_text=metric_choice, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5)
+            fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+            fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
@@ -538,3 +554,4 @@ if uploaded_file is not None or default_source.exists():
                 st.error("The methodology PDF could not be found in the industrial-policy folder.")
 else:
     st.warning("Please upload the NIPO XLSX file to start exploring.")
+
