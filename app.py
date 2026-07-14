@@ -381,7 +381,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("BBVA Research | Industrial Policy Explorer")
-st.markdown("Explore and analyze industrial policy interventions worldwide. Built by [BBVA Research](https://www.bbvaresearch.com/) based on [Global Trade Alert's New Industrial Policy Observatory (GTA-NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo) database.")
+st.markdown("Explore and analyze industrial policy interventions worldwide. Built by [BBVA Research](https://www.bbvaresearch.com/) based on the [Global Trade Alert's New Industrial Policy Observatory (GTA-NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo) database.")
 
 default_source = Path(__file__).with_name("GTA NIPO - January 2026.xlsx")
 uploaded_file = st.file_uploader("Please upload the NIPO database (XLSX file).", type="xlsx")
