@@ -395,37 +395,49 @@ if uploaded_file is not None or default_source.exists():
 
             st.markdown("### 2️⃣ Customize the subplots.")
             st.caption("Now configure the individual subplots to be displayed.")
-            chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit the first chart's settings by default.")
+            chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
             override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
             prior_master = saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_to_customize == "Chart 1" else prior_master, compact=True)
-            st.caption("When you customize a chart, its settings become the defaults inherited by the other charts.")
-            trigger_viz = st.button("Generate chart grid", type="primary", use_container_width=True)
-
-            # Forms that are not currently open retain their prior choices in
-            # session state, so a user can configure charts one at a time.
-            p1_raw = selected_override if chart_to_customize == "Chart 1" else saved_override_config("v_p1")
-            p2_raw = selected_override if chart_to_customize == "Chart 2" else saved_override_config("v_p2")
-            p3_raw = selected_override if chart_to_customize == "Chart 3" else saved_override_config("v_p3")
-            p4_raw = selected_override if chart_to_customize == "Chart 4" else saved_override_config("v_p4")
+            st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
+            save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
             st.markdown("### ⭐ Results")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
-        p1_config = fill_missing_with_master(p1_raw, p1_raw)
-        selected_effective = fill_missing_with_master(selected_override, p1_config)
-        inheritance_master = selected_effective
-        p2_config = selected_effective if chart_to_customize == "Chart 2" else fill_missing_with_master(p2_raw, inheritance_master)
-        p3_config = selected_effective if chart_to_customize == "Chart 3" else fill_missing_with_master(p3_raw, inheritance_master)
-        p4_config = selected_effective if chart_to_customize == "Chart 4" else fill_missing_with_master(p4_raw, inheritance_master)
-        
-        if trigger_viz:
-            configs = [p1_config, p2_config, p3_config, p4_config]
-            titles = [cfg.get("title") or f"Chart {idx + 1}" for idx, cfg in enumerate(configs)]
-            
-            fig = make_subplots(rows=2, cols=2, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
+        if "saved_subplot_configs" not in st.session_state:
+            st.session_state.saved_subplot_configs = {}
+
+        chart_number = int(chart_to_customize.split()[-1])
+        p1_config = selected_override if chart_number == 1 else saved_override_config("v_p1")
+        p1_config = fill_missing_with_master(p1_config, p1_config)
+        selected_effective = (
+            p1_config if chart_number == 1
+            else fill_missing_with_master(selected_override, p1_config)
+        )
+
+        if save_chart:
+            # Store the fully resolved settings. This both makes inheritance
+            # reliable for every child chart and prevents later form changes
+            # from altering a chart that has already been saved.
+            st.session_state.saved_subplot_configs[chart_number] = selected_effective
+
+        saved_configs = st.session_state.saved_subplot_configs
+        chart_numbers = []
+        for number in range(1, 5):
+            if number in saved_configs:
+                chart_numbers.append(number)
+            else:
+                break
+
+        if chart_numbers:
+            configs = [saved_configs[number] for number in chart_numbers]
+            titles = [cfg.get("title") or f"Chart {number}" for number, cfg in zip(chart_numbers, configs)]
+            chart_count = len(configs)
+            rows, cols = (1, 1) if chart_count == 1 else ((1, 2) if chart_count == 2 else (2, 2))
+            fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.12, horizontal_spacing=0.08)
             all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
             
             global_categories = set()
@@ -444,8 +456,8 @@ if uploaded_file is not None or default_source.exists():
             plot_colors = get_dynamic_palette(sorted_categories, disaggregation)
             color_map = dict(zip(sorted_categories, plot_colors))
             
-            for idx in range(4):
-                row, col = (idx // 2) + 1, (idx % 2) + 1
+            for idx in range(chart_count):
+                row, col = (idx // cols) + 1, (idx % cols) + 1
                 df_allocated = data_matrices[idx]
                 
                 if not df_allocated.empty:
@@ -470,7 +482,7 @@ if uploaded_file is not None or default_source.exists():
                     )
             
             fig.update_layout(
-                barmode='stack', hovermode='x unified', height=750,
+                barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
                 paper_bgcolor="white", plot_bgcolor="white",
                 margin=dict(l=50, r=30, t=60, b=100),
                 legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
@@ -482,7 +494,7 @@ if uploaded_file is not None or default_source.exists():
                 st.plotly_chart(fig, use_container_width=True)
         else:
             with plot_col:
-                st.info("Set the shared filters and select **Generate chart grid** to create the comparison.")
+                st.info("Configure Chart 1 and select **Save chart** to start the figure.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
