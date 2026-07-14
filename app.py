@@ -226,19 +226,21 @@ def apply_fractional_allocation(df, col_type):
     if col_type == "Assessment Type":
         df_temp["Active_Categories"] = df_temp["Initial Assessment"].apply(lambda x: [x] if x in ["Liberalising", "Distortive"] else ["Other Assessments"])
         df_temp["Denominator"] = 1.0
-    elif col_type in ["Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]:
-        target_col = "Sector: CPC 3-digit (v2.1)" if col_type == "Product (CPC v2.1 Sectors)" else "Product: HS 6-digit (2022)"
+    elif col_type in ["Product (CPC v2.1 Sections)", "Product (1-digit HS 2022)"]:
+        target_col = "Sector: CPC 3-digit (v2.1)" if col_type == "Product (CPC v2.1 Sections)" else "Product: HS 6-digit (2022)"
         
         # DEFINED INNER FUNCTION FOR SYSTEM ALLOCATIONS
         def split_codes(val):
             val = str(val).strip()
             if val.upper() in ["NAN", "NONE", ""]: return [f"Other {col_type}"]
             tokens = list(set([t.strip() for t in val.split(",") if t.strip()]))
-            if col_type == "Product (CPC v2.1 Sectors)":
-                return list(set([f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} (CPC-{t[:2].zfill(2)})" for t in tokens]))
-            # The database stores full HS codes; the requested one-digit view
-            # uses the chapter prefix shown in the UI (e.g. HS-01).
-            return list(set([f"{HS_PRODUCTS_2D.get(t[:2].zfill(2), HS_PRODUCTS_1D.get(t[:1], 'Other HS products'))} (HS-{t[:2].zfill(2)})" for t in tokens]))
+            if col_type == "Product (CPC v2.1 Sections)":
+                return list(set([
+                    f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} ({t[:1]})" for t in tokens
+                ]))
+            return list(set([
+                f"{HS_PRODUCTS_1D.get(t[:1], 'Other HS products')} ({t[:1]})" for t in tokens
+            ]))
             
         df_temp["Active_Categories"] = df_temp[target_col].apply(split_codes)
         df_temp["Denominator"] = df_temp["Active_Categories"].apply(len)
@@ -397,7 +399,7 @@ if uploaded_file is not None or default_source.exists():
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
                 "Sector", "Motive", "Policy Instrument", "Assessment Type",
-                "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
+                "Product (CPC v2.1 Sections)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
@@ -486,7 +488,8 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hoverinfo="name+y", showlegend=(idx == 0), legendgroup=cat
+                            hovertemplate=("%{y:.1f} USD Mill<extra>%{fullData.name}</extra>" if metric_choice != "Policy Count" else "%{y:.1f}<extra>%{fullData.name}</extra>"),
+                            showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
                     )
@@ -504,7 +507,7 @@ if uploaded_file is not None or default_source.exists():
                 legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
-            fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
+            fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True, tickformat=".1f", ticksuffix=" USD Mill" if metric_choice != "Policy Count" else "")
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
@@ -554,4 +557,3 @@ if uploaded_file is not None or default_source.exists():
                 st.error("The methodology PDF could not be found in the industrial-policy folder.")
 else:
     st.warning("Please upload the NIPO XLSX file to start exploring.")
-
