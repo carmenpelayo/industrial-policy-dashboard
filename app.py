@@ -381,10 +381,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("BBVA Research | Industrial Policy Explorer")
-st.markdown("Explore and analyze industrial policy interventions worldwide. Based on [Global Trade Alert's New Industrial Policy Observatory (NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo).")
+st.markdown("Explore and analyze industrial policy interventions worldwide. Built by [BBVA Research](https://www.bbvaresearch.com/) based on [Global Trade Alert's New Industrial Policy Observatory (GTA-NIPO)](https://globaltradealert.org/reports/new-industrial-policy-observatory-nipo) database.")
 
 default_source = Path(__file__).with_name("GTA NIPO - January 2026.xlsx")
-uploaded_file = st.file_uploader("Please upload a NIPO XLSX file.", type="xlsx")
+uploaded_file = st.file_uploader("Please upload the NIPO database (XLSX file).", type="xlsx")
 source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
