@@ -488,7 +488,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hovertemplate=("%{y:.1f} USD Mill<extra>%{fullData.name}</extra>" if metric_choice != "Policy Count" else "%{y:.1f}<extra>%{fullData.name}</extra>"),
+                            hoverinfo="name+y",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -496,9 +496,9 @@ if uploaded_file is not None or default_source.exists():
             
             metric_axis_label = {
                 "Policy Count": "Policy Count",
-                "Subsidy USD Amount": "Subsidy (USD million)",
-                "Trade Covered USD Amount": "Trade covered (USD million)",
-                "Combined USD Amount": "Combined (USD million)",
+                "Subsidy USD Amount": "Subsidy (USD Million)",
+                "Trade Covered USD Amount": "Trade covered (USD Million)",
+                "Combined USD Amount": "Combined (USD Million)",
             }[metric_choice]
             fig.update_layout(
                 barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
@@ -507,7 +507,10 @@ if uploaded_file is not None or default_source.exists():
                 legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
-            fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True, tickformat=".1f", ticksuffix=" USD Mill" if metric_choice != "Policy Count" else "")
+            # Let Plotly use its original compact SI formatting (e.g. 250k,
+            # 250.3k) for tick values; the axis title provides the USD-million
+            # unit context.
+            fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
