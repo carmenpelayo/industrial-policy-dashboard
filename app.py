@@ -23,11 +23,16 @@ GREYS = {"Sand": "#F7F8F8", "Grey-1": "#E2E6EA", "Grey-2": "#CAD1D8", "Grey-3": 
 ASSESSMENT_COLORS = {"Liberalising": "#1E5631", "Distortive": "#B22222"}
 
 CPC_SECTIONS = {
-    "0": "Agriculture, forestry, fishery", "1": "Ores, minerals, electricity, gas, water",
-    "2": "Food, beverages, apparel, leather", "3": "Other transportable goods",
-    "4": "Metal products, machinery", "5": "Constructions and services",
-    "6": "Distributive trade, transport, hospitality", "7": "Financial, real estate, leasing",
-    "8": "Business and production", "9": "Community, social, personal services"
+    "0": "Agriculture, forestry & fishery products",
+    "1": "Ores and minerals; Electricity, gas & water",
+    "2": "Food, beverages & tobacco; Textiles, apparel & leather",
+    "3": "Other transportable goods",
+    "4": "Metal products; Machinery & equipment",
+    "5": "Construction",
+    "6": "Trade; Hospitality; Transport; Distribution services",
+    "7": "Financial; Real estate; Leasing services",
+    "8": "Business & production services",
+    "9": "Community, social & personal services"
 }
 
 CPC_PRODUCTS_2D = {
@@ -46,13 +51,29 @@ HS_PRODUCTS_2D = {
     "85": "Electrical Machinery", "87": "Vehicles", "88": "Aircraft", "90": "Optical & Medical Instruments"
 }
 
-# Broad one-digit HS group labels used by the visualization selector.
 HS_PRODUCTS_1D = {
     "0": "Live animals & animal products", "1": "Vegetable products",
     "2": "Foodstuffs", "3": "Mineral products", "4": "Chemicals",
     "5": "Plastics, rubber & leather", "6": "Textiles & apparel",
     "7": "Stone, glass & precious metals", "8": "Base metals",
     "9": "Machinery, transport & other goods",
+}
+
+HS_SECTIONS = {
+    **{code: "Live animals; Animal products" for code in ["01", "02", "03", "04", "05"]},
+    **{code: "Vegetable products" for code in ["06", "07", "08", "09", "10", "11", "12", "13", "14"]},
+    **{code: "Food, beverages & tobacco" for code in ["15", "16", "17", "18", "19", "20", "21", "22", "23", "24"]},
+    **{code: "Mineral products" for code in ["25", "26", "27"]},
+    **{code: "Chemicals" for code in ["28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38"]},
+    **{code: "Plastics & rubber" for code in ["39", "40"]},
+    **{code: "Wood" for code in ["44", "45", "46", "47", "48", "49"]},
+    **{code: "Textiles & apparel; Leather" for code in [str(i).zfill(2) for i in range(41, 44)] + [str(i).zfill(2) for i in range(50, 68)]},
+    **{code: "Stone, glass & precious metals" for code in ["68", "69", "70", "71"]},
+    **{code: "Base metals" for code in [str(i).zfill(2) for i in range(72, 84)]},
+    **{code: "Machinery & equipment" for code in ["84", "85"]},
+    **{code: "Vehicles & transport equipment" for code in ["86", "87", "88", "89"]},
+    **{code: "Miscellaneous (Furniture, Optical, Musical, etc.)" for code in ["90", "91", "92", "94", "95", "96"]},
+    "93": "Arms & ammunition", "97": "Art",
 }
 
 COUNTRY_GROUPS = {
@@ -202,7 +223,7 @@ def execute_filter_pipeline(df, config):
         df_out = df_out[df_out["Product: HS 6-digit (2022)"].apply(lambda x: any(c in [t.strip()[:2].zfill(2) for t in str(x).split(",") if t.strip()] for c in codes))]
     if config.get("cpc_2d"):
         codes = [item.split("(")[1].replace(")", "").strip() for item in config["cpc_2d"]]
-        df_out = df_out[df_out["Sector: CPC 3-digit (v2.1)"].apply(lambda x: any(c in [t.strip()[:2].zfill(2) for t in str(x).split(",") if t.strip()] for c in codes))]
+        df_out = df_out[df_out["Sector: CPC 3-digit (v2.1)"].apply(lambda x: any(c == t.strip()[:1] for t in str(x).split(",") if t.strip() for c in codes))]
     if config.get("policies"):
         df_out = df_out[df_out[config["policies"]].any(axis=1)]
     if config.get("sectors"):
@@ -226,20 +247,20 @@ def apply_fractional_allocation(df, col_type):
     if col_type == "Assessment Type":
         df_temp["Active_Categories"] = df_temp["Initial Assessment"].apply(lambda x: [x] if x in ["Liberalising", "Distortive"] else ["Other Assessments"])
         df_temp["Denominator"] = 1.0
-    elif col_type in ["Product (CPC v2.1 Sections)", "Product (1-digit HS 2022)"]:
-        target_col = "Sector: CPC 3-digit (v2.1)" if col_type == "Product (CPC v2.1 Sections)" else "Product: HS 6-digit (2022)"
+    elif col_type in ["Product (CPC v2.1 Sectors)", "Product (CPC v2.1 Sections)", "Product (1-digit HS 2022)"]:
+        target_col = "Sector: CPC 3-digit (v2.1)" if col_type in ["Product (CPC v2.1 Sectors)", "Product (CPC v2.1 Sections)"] else "Product: HS 6-digit (2022)"
         
         # DEFINED INNER FUNCTION FOR SYSTEM ALLOCATIONS
         def split_codes(val):
             val = str(val).strip()
             if val.upper() in ["NAN", "NONE", ""]: return [f"Other {col_type}"]
             tokens = list(set([t.strip() for t in val.split(",") if t.strip()]))
-            if col_type == "Product (CPC v2.1 Sections)":
+            if col_type in ["Product (CPC v2.1 Sectors)", "Product (CPC v2.1 Sections)"]:
                 return list(set([
                     f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} ({t[:1]})" for t in tokens
                 ]))
             return list(set([
-                f"{HS_PRODUCTS_1D.get(t[:1], 'Other HS products')} ({t[:1]})" for t in tokens
+                f"{HS_SECTIONS.get(t[:2], 'Other HS products')} ({t[:2].zfill(2)})" for t in tokens
             ]))
             
         df_temp["Active_Categories"] = df_temp[target_col].apply(split_codes)
@@ -267,8 +288,8 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
-    hs_opts = [f"{v} ({k})" for k, v in HS_PRODUCTS_2D.items()]
-    cpc_opts = [f"{v} ({k})" for k, v in CPC_PRODUCTS_2D.items()]
+    hs_opts = sorted({f"{label} ({code})" for code, label in HS_SECTIONS.items()})
+    cpc_opts = [f"{v} ({k})" for k, v in CPC_SECTIONS.items()]
 
     def get_fallback(field, default):
         return master_ref[field] if master_ref and field in master_ref else default
@@ -295,8 +316,8 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         gov = st.multiselect("Government Level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
         flow = st.multiselect("Trade Flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
         assess = st.multiselect("Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
-        hs2d = st.multiselect("Product (2-digit HS 2022)", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
-        cpc2d = st.multiselect("Product (2-digit CPC v2.1)", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
+        hs2d = st.multiselect("Product (1-digit HS 2022)", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
+        cpc2d = st.multiselect("Product (CPC v2.1 Sectors)", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
         pols = st.multiselect("Policy Instrument", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
         secs = st.multiselect("Sector", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
         mots = st.multiselect("Motive", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
@@ -399,7 +420,7 @@ if uploaded_file is not None or default_source.exists():
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
                 "Sector", "Motive", "Policy Instrument", "Assessment Type",
-                "Product (CPC v2.1 Sections)", "Product (1-digit HS 2022)",
+                "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
