@@ -586,4 +586,4 @@ if uploaded_file is not None or default_source.exists():
             else:
                 st.error("The methodology PDF could not be found in the industrial-policy folder.")
 else:
-    st.warning("Please upload the NIPO XLSX file to start exploring.")
+    st.warning("Please upload the NIPO database (XLSX file) to start exploring.")
