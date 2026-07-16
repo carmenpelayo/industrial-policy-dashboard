@@ -415,7 +415,7 @@ if uploaded_file is not None or default_source.exists():
                 drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
                 display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
-                st.caption("Click on the button in the top right corner to download the selected data.")
+                st.caption("Click on the button in the top right corner of the output table to view in fullscreen, hide fields and download as CSV.")
             else:
                 st.info("Adjust the menu choices on the left column pane and select 'Generate Table'.")
 
