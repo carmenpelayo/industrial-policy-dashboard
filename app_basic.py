@@ -216,7 +216,9 @@ def execute_filter_pipeline(df, config):
         resolved_imp = set()
         for item in config["imp_jurisdiction"]:
             if item == "World":
-                # Resolve World exclusively from individual country values in the dataset. UI group shortcuts are never included, so nocountry can be counted twice.
+                # Resolve World exclusively from individual country values in
+                # the dataset. UI group shortcuts are never included, so no
+                # country can be counted twice.
                 resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
@@ -226,10 +228,6 @@ def execute_filter_pipeline(df, config):
     if config.get("aff_jurisdiction"):
         resolved_aff = set()
         for item in config["aff_jurisdiction"]:
-            if item == "World":
-                # Resolve World exclusively from individual country values in the dataset. UI group shortcuts are never included, so nocountry can be counted twice.
-                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
-                continue
             clean = item.replace("Group: ", "")
             resolved_aff.update(COUNTRY_GROUPS.get(clean, [clean]))
         df_out = df_out[df_out["Affected List"].apply(lambda x: any(i in resolved_aff for i in x))]
@@ -300,7 +298,7 @@ def apply_fractional_allocation(df, col_type):
 def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
     all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
-    all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
+    all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
@@ -370,6 +368,25 @@ def saved_override_config(key_prefix):
         for field, suffix in fields.items()
     }
 
+def build_default_config(df_source, title="", implementing_jurisdiction=None, keyword_search="", dates=None):
+    """Build a complete, widget-safe filter configuration."""
+    def date_bounds(column):
+        values = pd.to_datetime(df_source[column], errors="coerce").dropna()
+        if values.empty:
+            values = pd.to_datetime(df_source["Announcement Date"], errors="coerce").dropna()
+        return [values.min().date(), values.max().date()]
+
+    return {
+        "title": title,
+        "keyword_search": keyword_search,
+        "dates": dates or date_bounds("Announcement Date"),
+        "implementation_dates": date_bounds("Implementation Date"),
+        "removal_dates": date_bounds("Removal Date"),
+        "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
+        "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
+        "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
+    }
+
 # ==========================================
 # 6. STREAMLIT APP FRAMEWORK WORKSPACE
 # ==========================================
@@ -402,6 +419,19 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
+    inspector_defaults = build_default_config(
+        raw_df,
+        implementing_jurisdiction="United States of America",
+        keyword_search="defense OR military",
+        dates=[pd.Timestamp("2008-10-14").date(), pd.Timestamp("2025-12-12").date()],
+    )
+    if not st.session_state.get("saved_subplot_configs"):
+        st.session_state.saved_subplot_configs = {
+            1: build_default_config(raw_df, "United States of America", "United States of America", "defense OR military"),
+            2: build_default_config(raw_df, "European Union", "Group: EU-27", "defense OR military"),
+            3: build_default_config(raw_df, "China", "China", "defense OR military"),
+            4: build_default_config(raw_df, "World", "World", "defense OR military"),
+        }
     tab_inspect, tab_viz, tab_methodology = st.tabs(["🔎 Data inspection", "📊 Visualization", "❓ Methodology"])
 
     # ------------------------------------------
@@ -412,20 +442,17 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### ⚙️ Configure the output table.")
             st.caption("Choose the interventions to include in the output table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
+            inspector_config = render_inline_filters(raw_df, "inspector", master_ref=inspector_defaults, compact=True, include_title=False)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
             st.markdown("### ⭐ Results")
-            if trigger_inspect:
-                ins_df = execute_filter_pipeline(raw_df, inspector_config)
-                st.metric("Matching interventions", f"{len(ins_df):,}")
-                drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
-                display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
-                st.caption("Click on the button in the top right corner of the output table to view in fullscreen, hide fields and download as CSV.")
-            else:
-                st.info("Adjust the menu choices on the left column pane and select 'Generate Table'.")
+            ins_df = execute_filter_pipeline(raw_df, inspector_config)
+            st.metric("Matching interventions", f"{len(ins_df):,}")
+            drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
+            display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.caption("Click on the button in the top right corner of the output table to view in fullscreen, hide fields and download as CSV.")
 
     # ------------------------------------------
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
@@ -440,7 +467,7 @@ if uploaded_file is not None or default_source.exists():
                 "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
-            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
+            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
             st.markdown("### 2️⃣ Customize the subplots.")
@@ -452,7 +479,7 @@ if uploaded_file is not None or default_source.exists():
             # Saved child settings take precedence over Chart 1 inheritance.
             # A child inherits Chart 1 only until it has been saved once.
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
-            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_number == 1 else child_master, compact=True)
+            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
@@ -461,9 +488,6 @@ if uploaded_file is not None or default_source.exists():
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
-        if "saved_subplot_configs" not in st.session_state:
-            st.session_state.saved_subplot_configs = {}
-
         p1_config = selected_override if chart_number == 1 else st.session_state.get("saved_subplot_configs", {}).get(1, saved_override_config("v_p1"))
         p1_config = fill_missing_with_master(p1_config, p1_config)
         selected_effective = (
@@ -602,3 +626,4 @@ if uploaded_file is not None or default_source.exists():
                 st.error("The methodology PDF could not be found in the industrial-policy folder.")
 else:
     st.warning("Please upload the NIPO database (XLSX file) to start exploring.")
+
