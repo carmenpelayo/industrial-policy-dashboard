@@ -215,6 +215,10 @@ def execute_filter_pipeline(df, config):
     if config.get("imp_jurisdiction"):
         resolved_imp = set()
         for item in config["imp_jurisdiction"]:
+            if item == "World":
+                # Resolve World exclusively from individual country values in the dataset. UI group shortcuts are never included, so nocountry can be counted twice.
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                continue
             clean = item.replace("Group: ", "")
             resolved_imp.update(COUNTRY_GROUPS.get(clean, [clean]))
         df_out = df_out[df_out["Implementing Jurisdiction"].isin(list(resolved_imp))]
@@ -222,6 +226,10 @@ def execute_filter_pipeline(df, config):
     if config.get("aff_jurisdiction"):
         resolved_aff = set()
         for item in config["aff_jurisdiction"]:
+            if item == "World":
+                # Resolve World exclusively from individual country values in the dataset. UI group shortcuts are never included, so nocountry can be counted twice.
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                continue
             clean = item.replace("Group: ", "")
             resolved_aff.update(COUNTRY_GROUPS.get(clean, [clean]))
         df_out = df_out[df_out["Affected List"].apply(lambda x: any(i in resolved_aff for i in x))]
@@ -291,8 +299,8 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
-    all_imp = groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
-    all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
+    all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
+    all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
