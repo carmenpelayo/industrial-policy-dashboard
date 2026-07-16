@@ -520,7 +520,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            overtemplate="%{fullData.name}: %{y}<extra></extra>",
+                            hovertemplate="%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
