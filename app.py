@@ -101,7 +101,12 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 # ==========================================
 # 2. SOURCE DATA CLEANING & RE-APPORTIONMENT
 # ==========================================
-@st.cache_data
+# The prepared workbook is large (~160 MB in memory). It is treated as
+# immutable everywhere else in the app (filtering/allocation functions start
+# with ``.copy()``), so a shared resource avoids a separate DataFrame copy for
+# every user session. Keep only two sources to bound memory when users upload
+# replacement workbooks.
+@st.cache_resource(max_entries=2, show_spinner="Loading and preparing the NIPO database...")
 def load_source_data(uploaded_file):
     df = pd.read_excel(uploaded_file)
     df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
@@ -125,6 +130,16 @@ def load_source_data(uploaded_file):
             
     df["Initial Assessment"] = df["Initial Assessment (Change Relative to 1 Jan 2009)"].astype(str).str.capitalize()
     df["Affected List"] = df["Affected Jurisdiction"].astype(str).apply(lambda x: [i.strip() for i in x.split(",") if i.strip()])
+
+    # Repeated text fields (countries, policy types, classifications, etc.)
+    # dominate the workbook's memory footprint. Categoricals preserve the
+    # displayed values while storing the repeated strings once.
+    category_limit = min(5_000, max(1, len(df) // 5))
+    for col in df.select_dtypes(include="object").columns:
+        if col == "Affected List":
+            continue  # Lists are intentionally kept for affected-country filters.
+        if df[col].nunique(dropna=False) <= category_limit:
+            df[col] = df[col].astype("category")
     return df
 
 def get_dynamic_palette(categories, category_type):
@@ -447,7 +462,7 @@ if uploaded_file is not None or default_source.exists():
                 announcement_dates=[date(2008, 10, 14), date(2025, 12, 12)],
             )
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False, default_ref=inspector_defaults)
-            trigger_inspect = st.button("Generate Table", type="primary", width='stretch')
+            trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
             st.markdown("### ⭐ Results")
@@ -455,7 +470,7 @@ if uploaded_file is not None or default_source.exists():
             st.metric("Matching interventions", f"{len(ins_df):,}")
             drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
             display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
-            st.dataframe(display_df, width='stretch', hide_index=True)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # ------------------------------------------
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
@@ -484,7 +499,7 @@ if uploaded_file is not None or default_source.exists():
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
-            save_chart = st.button("Save chart", type="primary", width='stretch')
+            save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
             st.markdown("### ⭐ Results")
@@ -556,7 +571,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hovertemplate="%{fullData.name}: %{y}<extra></extra>",
+                            hovertemplate="<b>%{x}</b><br>%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -581,7 +596,7 @@ if uploaded_file is not None or default_source.exists():
             fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
             
             with plot_col:
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
                 st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
         else:
             with plot_col:
@@ -606,7 +621,7 @@ if uploaded_file is not None or default_source.exists():
         with pdf_col:
             methodology_path = Path(__file__).with_name("1774854873454_NIPO - Methodology.pdf")
 
-            @st.cache_data
+            @st.cache_data(max_entries=1, show_spinner=False)
             def load_pdf_bytes(path):
                 return path.read_bytes()
 
