@@ -546,6 +546,7 @@ if uploaded_file is not None or default_source.exists():
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
+                st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
         else:
             with plot_col:
                 st.info("Configure Chart 1 and select **Save chart** to start the figure.")
