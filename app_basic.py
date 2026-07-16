@@ -130,7 +130,12 @@ def get_dynamic_palette(categories, category_type):
     if category_type == "Assessment Type":
         return [ASSESSMENT_COLORS.get(c, GREYS["Grey-3"]) for c in categories]
     base_corporate = [PRIMARY_COLORS["Electric Blue"], PRIMARY_COLORS["Serene Blue"]] + ACCENT_COLORS
-    primary_cats = [c for c in categories if not str(c).startswith("Other")]
+    # "Other transportable goods (3)" is a proper CPC section, not an unclassified residual category, so it must retain a distinct colour.
+    is_product_view = category_type in {"Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"}
+    primary_cats = [
+        c for c in categories
+        if not (str(c) == "Others" if is_product_view else str(c).startswith("Other"))
+    ]
     
     # Keep the app self-contained: this used to call sns.color_palette without
     # importing seaborn, which caused the dashboard to fail as soon as a chart
@@ -304,13 +309,13 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
+    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
+    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
+    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
         help="Search for interventions with a title matching your query. Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
     )
-    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
-    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
-    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
 
     advanced = st.expander("More filters", expanded=not compact)
     with advanced:
@@ -410,6 +415,7 @@ if uploaded_file is not None or default_source.exists():
                 drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
                 display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.caption("Click on the button in the top right corner of the output table to view in fullscreen, hide fields and download as CSV.")
             else:
                 st.info("Adjust the menu choices on the left column pane and select 'Generate Table'.")
 
@@ -515,7 +521,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hoverinfo="name+y",
+                            hovertemplate="%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -531,7 +537,7 @@ if uploaded_file is not None or default_source.exists():
                 barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
                 paper_bgcolor="white", plot_bgcolor="white",
                 margin=dict(l=50, r=30, t=60, b=100),
-                legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
+                legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
             # Let Plotly use its original compact SI formatting (e.g. 250k,
@@ -541,6 +547,7 @@ if uploaded_file is not None or default_source.exists():
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
+                st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
         else:
             with plot_col:
                 st.info("Configure Chart 1 and select **Save chart** to start the figure.")
