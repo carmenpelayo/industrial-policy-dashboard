@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import openpyxl
 from pathlib import Path
+from datetime import date
 
 try:
     from streamlit_pdf_viewer import pdf_viewer
@@ -130,7 +131,13 @@ def get_dynamic_palette(categories, category_type):
     if category_type == "Assessment Type":
         return [ASSESSMENT_COLORS.get(c, GREYS["Grey-3"]) for c in categories]
     base_corporate = [PRIMARY_COLORS["Electric Blue"], PRIMARY_COLORS["Serene Blue"]] + ACCENT_COLORS
-    primary_cats = [c for c in categories if not str(c).startswith("Other")]
+    # "Other transportable goods (3)" is a proper CPC section, not an
+    # unclassified residual category, so it must retain a distinct colour.
+    is_product_view = category_type in {"Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"}
+    primary_cats = [
+        c for c in categories
+        if not (str(c) == "Others" if is_product_view else str(c).startswith("Other"))
+    ]
     
     # Keep the app self-contained: this used to call sns.color_palette without
     # importing seaborn, which caused the dashboard to fail as soon as a chart
@@ -144,7 +151,8 @@ def get_dynamic_palette(categories, category_type):
     palette_map = {}
     idx = 0
     for cat in categories:
-        if str(cat).startswith("Other"):
+        is_other_bucket = str(cat) == "Others" if is_product_view else str(cat).startswith("Other")
+        if is_other_bucket:
             palette_map[cat] = GREYS["Grey-3"]
         else:
             palette_map[cat] = color_pool[idx]
@@ -210,6 +218,11 @@ def execute_filter_pipeline(df, config):
     if config.get("imp_jurisdiction"):
         resolved_imp = set()
         for item in config["imp_jurisdiction"]:
+            if item == "Select all countries":
+                # Deliberately use only country rows, never the synthetic
+                # group choices, so countries are not counted twice.
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                continue
             clean = item.replace("Group: ", "")
             resolved_imp.update(COUNTRY_GROUPS.get(clean, [clean]))
         df_out = df_out[df_out["Implementing Jurisdiction"].isin(list(resolved_imp))]
@@ -256,14 +269,14 @@ def apply_fractional_allocation(df, col_type):
         # DEFINED INNER FUNCTION FOR SYSTEM ALLOCATIONS
         def split_codes(val):
             val = str(val).strip()
-            if val.upper() in ["NAN", "NONE", ""]: return [f"Other {col_type}"]
+            if val.upper() in ["NAN", "NONE", ""]: return ["Others"]
             tokens = list(set([t.strip() for t in val.split(",") if t.strip()]))
             if col_type in ["Product (CPC v2.1 Sectors)", "Product (CPC v2.1 Sections)"]:
                 return list(set([
-                    f"{CPC_SECTIONS.get(t[:1], 'Other Sections')} ({t[:1]})" for t in tokens
+                    f"{CPC_SECTIONS.get(t[:1], 'Others')} ({t[:1]})" if t[:1] in CPC_SECTIONS else "Others" for t in tokens
                 ]))
             return list(set([
-                HS_SECTION_BY_CODE.get(t[:2].zfill(2), "Other HS products") for t in tokens
+                HS_SECTION_BY_CODE.get(t[:2].zfill(2), "Others") for t in tokens
             ]))
             
         df_temp["Active_Categories"] = df_temp[target_col].apply(split_codes)
@@ -284,9 +297,9 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 # 5. INLINE FILTER SELECTION MAPPING BUILDER
 # ==========================================
-def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True):
+def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, default_ref=None):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
-    all_imp = groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
+    all_imp = ["Select all countries"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
@@ -295,7 +308,11 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     cpc_opts = [f"{v} ({k})" for k, v in CPC_SECTIONS.items()]
 
     def get_fallback(field, default):
-        return master_ref[field] if master_ref and field in master_ref else default
+        if master_ref and field in master_ref:
+            return master_ref[field]
+        if default_ref and field in default_ref:
+            return default_ref[field]
+        return default
 
     def date_bounds(column):
         if column not in df_source.columns:
@@ -304,13 +321,13 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
+    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
+    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
+    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
         help="Search for interventions with a title matching your query. Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
     )
-    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
-    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
-    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
 
     advanced = st.expander("More filters", expanded=not compact)
     with advanced:
@@ -357,6 +374,25 @@ def saved_override_config(key_prefix):
         for field, suffix in fields.items()
     }
 
+def default_filter_config(df_source, implementing_jurisdiction=None, title="", keyword_search="", announcement_dates=None):
+    """Build a complete filter configuration for the initial dashboard view."""
+    def bounds(column):
+        values = pd.to_datetime(df_source[column], errors="coerce").dropna() if column in df_source else pd.Series(dtype="datetime64[ns]")
+        if values.empty:
+            values = df_source["Announcement Date"].dropna()
+        return [values.min().date(), values.max().date()]
+
+    return {
+        "title": title,
+        "keyword_search": keyword_search,
+        "dates": announcement_dates or bounds("Announcement Date"),
+        "implementation_dates": bounds("Implementation Date"),
+        "removal_dates": bounds("Removal Date"),
+        "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
+        "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
+        "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
+    }
+
 # ==========================================
 # 6. STREAMLIT APP FRAMEWORK WORKSPACE
 # ==========================================
@@ -389,6 +425,13 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
+    if "saved_subplot_configs" not in st.session_state:
+        st.session_state.saved_subplot_configs = {
+            1: default_filter_config(raw_df, "United States of America", "United States of America"),
+            2: default_filter_config(raw_df, "Group: EU-27", "European Union"),
+            3: default_filter_config(raw_df, "China", "China"),
+            4: default_filter_config(raw_df, "Select all countries", "AllCountries"),
+        }
     tab_inspect, tab_viz, tab_methodology = st.tabs(["🔎 Data inspection", "📊 Visualization", "❓ Methodology"])
 
     # ------------------------------------------
@@ -399,19 +442,20 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### ⚙️ Configure the output table.")
             st.caption("Choose the interventions to include in the output table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
+            inspector_defaults = default_filter_config(
+                raw_df, "United States of America", keyword_search="defense OR military",
+                announcement_dates=[date(2008, 10, 14), date(2025, 12, 12)],
+            )
+            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False, default_ref=inspector_defaults)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
             st.markdown("### ⭐ Results")
-            if trigger_inspect:
-                ins_df = execute_filter_pipeline(raw_df, inspector_config)
-                st.metric("Matching interventions", f"{len(ins_df):,}")
-                drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
-                display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
-            else:
-                st.info("Adjust the menu choices on the left column pane and select 'Generate Table'.")
+            ins_df = execute_filter_pipeline(raw_df, inspector_config)
+            st.metric("Matching interventions", f"{len(ins_df):,}")
+            drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
+            display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # ------------------------------------------
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
@@ -426,7 +470,7 @@ if uploaded_file is not None or default_source.exists():
                 "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
-            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
+            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
             st.markdown("### 2️⃣ Customize the subplots.")
@@ -438,7 +482,7 @@ if uploaded_file is not None or default_source.exists():
             # Saved child settings take precedence over Chart 1 inheritance.
             # A child inherits Chart 1 only until it has been saved once.
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
-            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=None if chart_number == 1 else child_master, compact=True)
+            selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
@@ -447,9 +491,6 @@ if uploaded_file is not None or default_source.exists():
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
-        if "saved_subplot_configs" not in st.session_state:
-            st.session_state.saved_subplot_configs = {}
-
         p1_config = selected_override if chart_number == 1 else st.session_state.get("saved_subplot_configs", {}).get(1, saved_override_config("v_p1"))
         p1_config = fill_missing_with_master(p1_config, p1_config)
         selected_effective = (
@@ -515,7 +556,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hoverinfo="name+y",
+                            hovertemplate="<b>%{x}</b><br>%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -530,8 +571,8 @@ if uploaded_file is not None or default_source.exists():
             fig.update_layout(
                 barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
                 paper_bgcolor="white", plot_bgcolor="white",
-                margin=dict(l=50, r=30, t=60, b=100),
-                legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
+                margin=dict(l=50, r=30, t=60, b=180),
+                legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
             # Let Plotly use its original compact SI formatting (e.g. 250k,
@@ -541,6 +582,7 @@ if uploaded_file is not None or default_source.exists():
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
+                st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
         else:
             with plot_col:
                 st.info("Configure Chart 1 and select **Save chart** to start the figure.")
