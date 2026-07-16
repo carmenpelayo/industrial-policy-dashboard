@@ -130,7 +130,12 @@ def get_dynamic_palette(categories, category_type):
     if category_type == "Assessment Type":
         return [ASSESSMENT_COLORS.get(c, GREYS["Grey-3"]) for c in categories]
     base_corporate = [PRIMARY_COLORS["Electric Blue"], PRIMARY_COLORS["Serene Blue"]] + ACCENT_COLORS
-    primary_cats = [c for c in categories if not str(c).startswith("Other")]
+    # "Other transportable goods (3)" is a proper CPC section, not an unclassified residual category, so it must retain a distinct colour.
+    is_product_view = category_type in {"Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"}
+    primary_cats = [
+        c for c in categories
+        if not (str(c) == "Others" if is_product_view else str(c).startswith("Other"))
+    ]
     
     # Keep the app self-contained: this used to call sns.color_palette without
     # importing seaborn, which caused the dashboard to fail as soon as a chart
@@ -515,7 +520,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hoverinfo="name+y",
+                            overtemplate="%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -531,7 +536,7 @@ if uploaded_file is not None or default_source.exists():
                 barmode='stack', hovermode='x unified', height=500 if chart_count == 1 else 750,
                 paper_bgcolor="white", plot_bgcolor="white",
                 margin=dict(l=50, r=30, t=60, b=100),
-                legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5)
+                legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
             # Let Plotly use its original compact SI formatting (e.g. 250k,
