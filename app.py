@@ -216,9 +216,9 @@ def execute_filter_pipeline(df, config):
         resolved_imp = set()
         for item in config["imp_jurisdiction"]:
             if item == "World":
-                # Use only country entries present in the source data. Group
-                # options are UI shortcuts and are never added here, avoiding
-                # any possibility of double-counting.
+                # Resolve World exclusively from individual country values in
+                # the dataset. UI group shortcuts are never included, so no
+                # country can be counted twice.
                 resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
@@ -368,20 +368,23 @@ def saved_override_config(key_prefix):
         for field, suffix in fields.items()
     }
 
-def default_chart_config(df_source, title):
-    """Provide an unfiltered, titled chart for the initial 2x2 figure."""
-    def bounds(column):
+def build_default_config(df_source, title="", implementing_jurisdiction=None, keyword_search="", dates=None):
+    """Build a complete, widget-safe filter configuration."""
+    def date_bounds(column):
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
+        if values.empty:
+            values = pd.to_datetime(df_source["Announcement Date"], errors="coerce").dropna()
         return [values.min().date(), values.max().date()]
 
     return {
-        "keyword_search": "", "title": title,
-        "dates": bounds("Announcement Date"),
-        "implementation_dates": bounds("Implementation Date"),
-        "removal_dates": bounds("Removal Date"),
-        "imp_jurisdiction": [], "aff_jurisdiction": [], "gov_level": [],
-        "trade_flow": [], "assessments": [], "hs_2d": [], "cpc_2d": [],
-        "policies": [], "sectors": [], "motives": [],
+        "title": title,
+        "keyword_search": keyword_search,
+        "dates": dates or date_bounds("Announcement Date"),
+        "implementation_dates": date_bounds("Implementation Date"),
+        "removal_dates": date_bounds("Removal Date"),
+        "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
+        "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
+        "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
     }
 
 # ==========================================
@@ -416,10 +419,18 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    if "saved_subplot_configs" not in st.session_state:
+    inspector_defaults = build_default_config(
+        raw_df,
+        implementing_jurisdiction="United States of America",
+        keyword_search="defense OR military",
+        dates=[pd.Timestamp("2008-10-14").date(), pd.Timestamp("2025-12-12").date()],
+    )
+    if not st.session_state.get("saved_subplot_configs"):
         st.session_state.saved_subplot_configs = {
-            number: default_chart_config(raw_df, f"Chart {number}")
-            for number in range(1, 5)
+            1: build_default_config(raw_df, "United States of America", "United States of America", "defense OR military"),
+            2: build_default_config(raw_df, "European Union", "Group: EU-27", "defense OR military"),
+            3: build_default_config(raw_df, "China", "China", "defense OR military"),
+            4: build_default_config(raw_df, "World", "World", "defense OR military"),
         }
     tab_inspect, tab_viz, tab_methodology = st.tabs(["🔎 Data inspection", "📊 Visualization", "❓ Methodology"])
 
@@ -431,7 +442,7 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### ⚙️ Configure the output table.")
             st.caption("Choose the interventions to include in the output table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
+            inspector_config = render_inline_filters(raw_df, "inspector", master_ref=inspector_defaults, compact=True, include_title=False)
             trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
@@ -456,7 +467,7 @@ if uploaded_file is not None or default_source.exists():
                 "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
-            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"])
+            metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
 
             st.markdown("### 2️⃣ Customize the subplots.")
