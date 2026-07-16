@@ -462,7 +462,7 @@ if uploaded_file is not None or default_source.exists():
                 announcement_dates=[date(2008, 10, 14), date(2025, 12, 12)],
             )
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False, default_ref=inspector_defaults)
-            trigger_inspect = st.button("Generate Table", type="primary", width='stretch')
+            trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
             
         with plot_col:
             st.markdown("### ⭐ Results")
@@ -470,7 +470,7 @@ if uploaded_file is not None or default_source.exists():
             st.metric("Matching interventions", f"{len(ins_df):,}")
             drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
             display_df = ins_df.drop(columns=[c for c in drop_fields if c in ins_df.columns], errors="ignore")
-            st.dataframe(display_df, width='stretch', hide_index=True)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # ------------------------------------------
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
@@ -499,7 +499,7 @@ if uploaded_file is not None or default_source.exists():
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
             st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
-            save_chart = st.button("Save chart", type="primary", width='stretch')
+            save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
             st.markdown("### ⭐ Results")
@@ -542,7 +542,14 @@ if uploaded_file is not None or default_source.exists():
                 sub_filtered = execute_filter_pipeline(raw_df, cfg)
                 if not sub_filtered.empty:
                     allocated_df = apply_fractional_allocation(sub_filtered, disaggregation)
-                    global_categories.update(allocated_df["Active_Categories"].dropna().unique())
+                    # ``Active_Categories`` can retain pandas categorical
+                    # metadata after loading the compacted source data. Cast
+                    # to plain strings before adding to a Python set so every
+                    # plotted category is reliably hashable.
+                    global_categories.update(
+                        str(category)
+                        for category in allocated_df["Active_Categories"].dropna().tolist()
+                    )
                     data_matrices.append(allocated_df)
                 else:
                     data_matrices.append(pd.DataFrame())
@@ -571,7 +578,7 @@ if uploaded_file is not None or default_source.exists():
                     fig.add_trace(
                         go.Bar(
                             x=x_axis_labels, y=y_vals, name=cat, marker_color=color_map[cat],
-                            hovertemplate="%{fullData.name}: %{y}<extra></extra>",
+                            hovertemplate="<b>%{x}</b><br>%{fullData.name}: %{y}<extra></extra>",
                             showlegend=(idx == 0), legendgroup=cat
                         ),
                         row=row, col=col
@@ -596,7 +603,7 @@ if uploaded_file is not None or default_source.exists():
             fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"], gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
             
             with plot_col:
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
                 st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
         else:
             with plot_col:
