@@ -228,6 +228,9 @@ def execute_filter_pipeline(df, config):
     if config.get("aff_jurisdiction"):
         resolved_aff = set()
         for item in config["aff_jurisdiction"]:
+            if item == "World":
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                continue
             clean = item.replace("Group: ", "")
             resolved_aff.update(COUNTRY_GROUPS.get(clean, [clean]))
         df_out = df_out[df_out["Affected List"].apply(lambda x: any(i in resolved_aff for i in x))]
@@ -295,10 +298,10 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 # 5. INLINE FILTER SELECTION MAPPING BUILDER
 # ==========================================
-def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True):
+def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, include_implementing=True, include_dates=True, include_keyword=True):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
     all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
-    all_aff = groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
+    all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
@@ -315,13 +318,13 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt")
-    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp")
+    dt = st.date_input("Announcement Date", get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()]), key=f"{key_prefix}_dt") if include_dates else get_fallback("dates", [df_source["Announcement Date"].min(), df_source["Announcement Date"].max()])
+    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
         help="Search for interventions with a title matching your query. Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
-    )
+    ) if include_keyword else get_fallback("keyword_search", "")
 
     advanced = st.expander("More filters", expanded=not compact)
     with advanced:
@@ -386,6 +389,66 @@ def build_default_config(df_source, title="", implementing_jurisdiction=None, ke
         "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
         "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
     }
+
+def build_visualization_figure(df_source, configs, disaggregation, freq_choice, metric_choice, smoothing):
+    """Create a one-to-four-panel visualization from fully resolved filters."""
+    freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
+    metric_col = {
+        "Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD",
+        "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD",
+    }[metric_choice]
+    titles = [cfg.get("title") or f"Chart {number}" for number, cfg in enumerate(configs, start=1)]
+    chart_count = len(configs)
+    rows, cols = (1, 1) if chart_count == 1 else ((1, 2) if chart_count == 2 else (2, 2))
+    fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.14, horizontal_spacing=0.16)
+    all_periods = pd.period_range(start="2010-01-01", end="2025-12-31", freq=freq_code)
+    global_categories, data_matrices = set(), []
+
+    for cfg in configs:
+        sub_filtered = execute_filter_pipeline(df_source, cfg)
+        if not sub_filtered.empty:
+            allocated_df = apply_fractional_allocation(sub_filtered, disaggregation)
+            global_categories.update(allocated_df["Active_Categories"].dropna().unique())
+            data_matrices.append(allocated_df)
+        else:
+            data_matrices.append(pd.DataFrame())
+
+    sorted_categories = sorted(global_categories, key=lambda x: (str(x).startswith("Other"), x))
+    color_map = dict(zip(sorted_categories, get_dynamic_palette(sorted_categories, disaggregation)))
+    for idx, df_allocated in enumerate(data_matrices):
+        row, col = (idx // cols) + 1, (idx % cols) + 1
+        if not df_allocated.empty:
+            df_allocated = df_allocated.copy()
+            df_allocated["Period"] = df_allocated["Announcement Date"].dt.to_period(freq_code)
+            grouped = df_allocated.groupby(["Period", "Active_Categories"])[metric_col].sum().unstack(fill_value=0)
+            plot_data = grouped.reindex(index=all_periods, columns=sorted_categories, fill_value=0)
+            if smoothing > 1:
+                plot_data = plot_data.rolling(window=smoothing, min_periods=1).mean()
+        else:
+            plot_data = pd.DataFrame(0.0, index=all_periods, columns=sorted_categories)
+        for category in sorted_categories:
+            fig.add_trace(
+                go.Bar(x=plot_data.index.astype(str), y=plot_data[category], name=category,
+                       marker_color=color_map[category], hovertemplate="%{fullData.name}: %{y}<extra></extra>",
+                       showlegend=(idx == 0), legendgroup=category), row=row, col=col,
+            )
+
+    if not sorted_categories:
+        fig.add_annotation(text="No interventions match the selected filters.", showarrow=False,
+                           x=0.5, y=0.5, xref="paper", yref="paper", font=dict(color=GREYS["Grey-4"]))
+    metric_axis_label = {
+        "Policy Count": "Policy Count", "Subsidy USD Amount": "Subsidy (USD Million)",
+        "Trade Covered USD Amount": "Trade covered (USD Million)", "Combined USD Amount": "Combined (USD Million)",
+    }[metric_choice]
+    fig.update_layout(
+        barmode="stack", hovermode="x unified", height=500 if chart_count == 1 else 750,
+        paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=50, r=30, t=60, b=100),
+        legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5),
+    )
+    fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+    fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"],
+                     gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
+    return fig
 
 # ==========================================
 # 6. STREAMLIT APP FRAMEWORK WORKSPACE
@@ -458,7 +521,68 @@ if uploaded_file is not None or default_source.exists():
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
     # ------------------------------------------
     with tab_viz:
-        filter_col, plot_col = st.columns([1, 3])
+        st.markdown("### Choose a visualization approach")
+        jurisdiction_tab, metric_tab, diy_tab = st.tabs([
+            "By Implementing Jurisdiction", "By Metric", "Do-It-Yourself",
+        ])
+        chart_options = ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]
+        frequency_options = ["Daily", "Monthly", "Quarterly", "Yearly"]
+        measure_options = ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"]
+        jurisdiction_options = sorted(raw_df["Implementing Jurisdiction"].dropna().unique().tolist())
+
+        with jurisdiction_tab:
+            filter_col, plot_col = st.columns([1, 3])
+            with filter_col:
+                st.markdown("### 1. Select implementing jurisdictions")
+                selected_jurisdictions = st.multiselect("Jurisdictions to compare (1–4)", jurisdiction_options, default=jurisdiction_options[:4], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction is shown in its own chart using the same settings and filters.")
+                st.markdown("### 2. Configure shared settings and filters")
+                jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
+                jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
+                jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
+                jurisdiction_smoothing = st.slider("Smoothing (periods)", 1, 100, 1, key="jurisdiction_smoothing")
+                shared_filters = render_inline_filters(raw_df, "jurisdiction_shared", compact=True, include_title=False, include_implementing=False)
+            with plot_col:
+                st.markdown("### Results")
+                if selected_jurisdictions:
+                    jurisdiction_configs = []
+                    for jurisdiction in selected_jurisdictions:
+                        config = shared_filters.copy()
+                        config.update({"title": jurisdiction, "imp_jurisdiction": [jurisdiction]})
+                        jurisdiction_configs.append(config)
+                    st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
+                else:
+                    st.info("Select at least one implementing jurisdiction to display the comparison figure.")
+
+        with metric_tab:
+            filter_col, plot_col = st.columns([1, 3])
+            with filter_col:
+                st.markdown("### 1. Select an implementing jurisdiction")
+                metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_options, key="metric_jurisdiction")
+                st.markdown("### 2. Configure shared settings")
+                metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
+                metric_smoothing = st.slider("Smoothing (periods)", 1, 100, 1, key="metric_smoothing")
+                metric_dates = st.date_input("Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], key="metric_dates")
+                metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
+                metric_keyword = st.text_input("Keyword Search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
+                with st.expander("More filters"):
+                    metric_extra_filters = render_inline_filters(raw_df, "metric_extra", compact=True, include_title=False, include_implementing=False, include_dates=False, include_keyword=False)
+            with plot_col:
+                st.markdown("### Results")
+                chart_defaults = ["Sector", "Motive", "Policy Instrument", "Assessment Type"]
+                metric_chart_config = metric_extra_filters.copy()
+                metric_chart_config.update({"imp_jurisdiction": [metric_jurisdiction], "dates": metric_dates, "keyword_search": metric_keyword})
+                for row_number, row_defaults in enumerate([chart_defaults[:2], chart_defaults[2:]]):
+                    chart_columns = st.columns(2)
+                    for column_number, (chart_col, default_split) in enumerate(zip(chart_columns, row_defaults)):
+                        chart_index = row_number * 2 + column_number + 1
+                        with chart_col:
+                            chart_split = st.selectbox(f"Chart {chart_index}: split series by", chart_options, index=chart_options.index(default_split), key=f"metric_chart_split_{chart_index}")
+                            chart_config = metric_chart_config.copy()
+                            chart_config["title"] = f"{metric_jurisdiction} — {chart_split}"
+                            st.plotly_chart(build_visualization_figure(raw_df, [chart_config], chart_split, metric_frequency, metric_measure, metric_smoothing), use_container_width=True)
+
+        with diy_tab:
+            filter_col, plot_col = st.columns([1, 3])
         with filter_col:
             st.markdown("### 1️⃣ Configure the general figure settings.")
             st.caption("Set the general figure settings first.")
