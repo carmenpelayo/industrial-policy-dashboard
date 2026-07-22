@@ -105,11 +105,11 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 @st.cache_data
 def load_source_data(uploaded_file):
     df = pd.read_excel(uploaded_file)
-    df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
-    for date_col in ["Implementation Date", "Removal Date"]:
+    df["Announcement date"] = pd.to_datetime(df["Announcement date"], errors="coerce")
+    for date_col in ["Implementation date", "Removal date"]:
         if date_col in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-    df = df.dropna(subset=["Announcement Date"])
+    df = df.dropna(subset=["Announcement date"])
     df = df[df["Levels of Policy Intervention"] != "Firm-specific"]
     
     df["Trade Covered (USD Million)"] = pd.to_numeric(df["Trade Covered (USD Million)"], errors='coerce').fillna(0)
@@ -195,9 +195,9 @@ def evaluate_boolean_query(title_text, query_str):
 def execute_filter_pipeline(df, config):
     df_out = df.copy()
     if len(config.get("dates", [])) == 2:
-        df_out = df_out[(df_out["Announcement Date"] >= pd.to_datetime(config["dates"][0])) & 
-                        (df_out["Announcement Date"] <= pd.to_datetime(config["dates"][1]))]
-    for date_col, config_key in [("Implementation Date", "implementation_dates"), ("Removal Date", "removal_dates")]:
+        df_out = df_out[(df_out["Announcement date"] >= pd.to_datetime(config["dates"][0])) & 
+                        (df_out["Announcement date"] <= pd.to_datetime(config["dates"][1]))]
+    for date_col, config_key in [("Implementation date", "implementation_dates"), ("Removal date", "removal_dates")]:
         if date_col in df_out.columns and len(config.get(config_key, [])) == 2:
             df_out = df_out[
                 df_out[date_col].isna() |
@@ -210,7 +210,7 @@ def execute_filter_pipeline(df, config):
     if config.get("gov_level"):
         df_out = df_out[df_out["Level of Government Implementation"].isin(config["gov_level"])]
     if config.get("trade_flow"):
-        df_out = df_out[df_out["Affected Trade Flow"].isin(config["trade_flow"])]
+        df_out = df_out[df_out["Affected Trade flow"].isin(config["trade_flow"])]
     if config.get("assessments"):
         df_out = df_out[df_out["Initial Assessment"].isin(config["assessments"])]
         
@@ -221,17 +221,17 @@ def execute_filter_pipeline(df, config):
                 # Resolve World exclusively from individual country values in
                 # the dataset. UI group shortcuts are never included, so no
                 # country can be counted twice.
-                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                resolved_imp.update(df["Implementing jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
             resolved_imp.update(COUNTRY_GROUPS.get(clean, [clean]))
-        df_out = df_out[df_out["Implementing Jurisdiction"].isin(list(resolved_imp))]
+        df_out = df_out[df_out["Implementing jurisdiction"].isin(list(resolved_imp))]
         
     if config.get("aff_jurisdiction"):
         resolved_aff = set()
         for item in config["aff_jurisdiction"]:
             if item == "World":
-                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
+                resolved_imp.update(df["Implementing jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
             resolved_aff.update(COUNTRY_GROUPS.get(clean, [clean]))
@@ -302,10 +302,10 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, include_implementing=True, include_dates=True, include_keyword=True, advanced_expander=True, default_announcement_dates=None):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
-    all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
+    all_imp = ["World"] + groups_list + sorted(df_source["Implementing jurisdiction"].dropna().unique().tolist())
     all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
-    all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
+    all_flow = sorted(df_source["Affected Trade flow"].dropna().unique().tolist())
     
     hs_opts = list(dict.fromkeys(HS_SECTIONS.values()))
     cpc_opts = [f"{v} ({k})" for k, v in CPC_SECTIONS.items()]
@@ -315,31 +315,31 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
 
     def date_bounds(column):
         if column not in df_source.columns:
-            return [df_source["Announcement Date"].min().date(), df_source["Announcement Date"].max().date()]
+            return [df_source["Announcement date"].min().date(), df_source["Announcement date"].max().date()]
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
-        return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
+        return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement date")
 
-    announcement_dates = date_bounds("Announcement Date")
+    announcement_dates = date_bounds("Announcement date")
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
+    dt = st.date_input("Announcement date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
-    aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
+    aff = st.multiselect("Affected jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
-        "Keyword Search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
+        "Keyword search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
         help="Search for interventions with a title matching your query. Use parentheses to group terms and AND/OR to combine them. Example: (AI OR artificial intelligence) AND (chip OR semiconductor). Search is case-insensitive and matches complete words."
     ) if include_keyword else get_fallback("keyword_search", "")
 
     advanced = st.expander("More filters", expanded=not compact) if advanced_expander else st.container()
     with advanced:
-        implementation_dates = st.date_input("Implementation Date", get_fallback("implementation_dates", date_bounds("Implementation Date")), key=f"{key_prefix}_implementation_dates", help="Select the implementation-date range to include.")
-        removal_dates = st.date_input("Removal Date", get_fallback("removal_dates", date_bounds("Removal Date")), key=f"{key_prefix}_removal_dates", help="Select the removal-date range to include.")
-        gov = st.multiselect("Government Level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
-        flow = st.multiselect("Trade Flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
+        implementation_dates = st.date_input("Implementation date", get_fallback("implementation_dates", date_bounds("Implementation date")), key=f"{key_prefix}_implementation_dates", help="Select the implementation-date range to include.")
+        removal_dates = st.date_input("Removal date", get_fallback("removal_dates", date_bounds("Removal date")), key=f"{key_prefix}_removal_dates", help="Select the removal-date range to include.")
+        gov = st.multiselect("Government level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
+        flow = st.multiselect("Trade flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
         assess = st.multiselect("Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
         hs2d = st.multiselect("Product (1-digit HS 2022)", hs_opts, default=get_fallback("hs_2d", []), key=f"{key_prefix}_hs2d")
         cpc2d = st.multiselect("Product (CPC v2.1 Sectors)", cpc_opts, default=get_fallback("cpc_2d", []), key=f"{key_prefix}_cpc2d")
-        pols = st.multiselect("Policy Instrument", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
+        pols = st.multiselect("Policy instrument", POLICY_COLS, default=get_fallback("policies", []), key=f"{key_prefix}_pols")
         secs = st.multiselect("Sector", SECTOR_COLS + ["Others"], default=get_fallback("sectors", []), key=f"{key_prefix}_secs")
         mots = st.multiselect("Motive", MOTIVE_COLS + ["Others"], default=get_fallback("motives", []), key=f"{key_prefix}_mots")
 
@@ -380,15 +380,15 @@ def build_default_config(df_source, title="", implementing_jurisdiction=None, ke
     def date_bounds(column):
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
         if values.empty:
-            values = pd.to_datetime(df_source["Announcement Date"], errors="coerce").dropna()
+            values = pd.to_datetime(df_source["Announcement date"], errors="coerce").dropna()
         return [values.min().date(), values.max().date()]
 
     return {
         "title": title,
         "keyword_search": keyword_search,
-        "dates": dates or date_bounds("Announcement Date"),
-        "implementation_dates": date_bounds("Implementation Date"),
-        "removal_dates": date_bounds("Removal Date"),
+        "dates": dates or date_bounds("Announcement date"),
+        "implementation_dates": date_bounds("Implementation date"),
+        "removal_dates": date_bounds("Removal date"),
         "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
         "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
         "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
@@ -440,7 +440,7 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
         row, col = (idx // cols) + 1, (idx % cols) + 1
         if not df_allocated.empty:
             df_allocated = df_allocated.copy()
-            df_allocated["Period"] = df_allocated["Announcement Date"].dt.to_period(freq_code)
+            df_allocated["Period"] = df_allocated["Announcement date"].dt.to_period(freq_code)
             grouped = df_allocated.groupby(["Period", "Active_Categories"])[metric_col].sum().unstack(fill_value=0)
             plot_data = grouped.reindex(index=all_periods, columns=sorted_categories, fill_value=0)
             if smoothing > 1:
@@ -504,7 +504,7 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
         if len(dates) == 2:
             periods = pd.period_range(pd.to_datetime(dates[0]), pd.to_datetime(dates[1]), freq=freq_code)
         elif not filtered.empty:
-            periods = pd.period_range(filtered["Announcement Date"].min(), filtered["Announcement Date"].max(), freq=freq_code)
+            periods = pd.period_range(filtered["Announcement date"].min(), filtered["Announcement date"].max(), freq=freq_code)
         else:
             periods = pd.period_range("2010-01-01", "2025-12-31", freq=freq_code)
 
@@ -512,7 +512,7 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
             values = pd.Series(0.0, index=periods)
         else:
             filtered = filtered.copy()
-            filtered["Period"] = filtered["Announcement Date"].dt.to_period(freq_code)
+            filtered["Period"] = filtered["Announcement date"].dt.to_period(freq_code)
             if metric_col is None:
                 values = filtered.groupby("Period").size().astype(float)
             else:
@@ -632,23 +632,24 @@ if uploaded_file is not None or default_source.exists():
         metric_tab, jurisdiction_tab, diy_tab = st.tabs([
             "By Country", "Across Countries", "Do-It-Yourself",
         ])
-        chart_options = ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]
+        chart_options = ["Sector", "Motive", "Policy instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]
         frequency_options = ["Daily", "Monthly", "Quarterly", "Yearly"]
         measure_options = ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"]
-        jurisdiction_options = sorted(raw_df["Implementing Jurisdiction"].dropna().unique().tolist())
+        jurisdiction_options = sorted(raw_df["Implementing jurisdiction"].dropna().unique().tolist())
         jurisdiction_selection_options = ["World"] + [f"Group: {name}" for name in COUNTRY_GROUPS] + jurisdiction_options
 
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
                 st.markdown("#### 1. Implementing jurisdictions")
-                selected_jurisdictions = st.multiselect("Select the countries or groups to compare (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
+                st.caption("Select the countries or groups to analyze.").
+                selected_jurisdictions = st.multiselect("Implementing jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
                 st.markdown("#### 2. Shared settings")
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
-                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                visualization_dates = [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()]
+                jurisdiction_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -662,24 +663,24 @@ if uploaded_file is not None or default_source.exists():
                         jurisdiction_configs.append(config)
                     st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
                 else:
-                    st.info("Select at least one implementing jurisdiction to display the comparison figure.")
+                    st.info("Select at least one Implementing jurisdiction to display the comparison figure.")
 
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Select an implementing jurisdiction")
-                metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
+                st.markdown("#### 1. Select an Implementing jurisdiction")
+                metric_jurisdiction = st.selectbox("Implementing jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
                 st.markdown("#### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
-                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                visualization_dates = [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()]
+                metric_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
-                metric_keyword = st.text_input("Keyword Search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
+                metric_keyword = st.text_input("Keyword search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
                 with st.expander("More filters"):
                     metric_extra_filters = render_inline_filters(raw_df, "metric_extra", compact=True, include_title=False, include_implementing=False, include_dates=False, include_keyword=False, advanced_expander=False)
             with plot_col:
-                chart_defaults = ["Sector", "Motive", "Policy Instrument", "Assessment Type"]
+                chart_defaults = ["Sector", "Motive", "Policy instrument", "Assessment Type"]
                 metric_chart_config = metric_extra_filters.copy()
                 metric_chart_config.update({"imp_jurisdiction": [metric_jurisdiction], "dates": metric_dates, "keyword_search": metric_keyword})
                 selected_splits = []
@@ -708,7 +709,7 @@ if uploaded_file is not None or default_source.exists():
             st.markdown("#### 1. General settings")
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
-                "Sector", "Motive", "Policy Instrument", "Assessment Type",
+                "Sector", "Motive", "Policy instrument", "Assessment Type",
                 "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)",
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
@@ -784,7 +785,7 @@ if uploaded_file is not None or default_source.exists():
                 df_allocated = data_matrices[idx]
                 
                 if not df_allocated.empty:
-                    df_allocated['Period'] = df_allocated['Announcement Date'].dt.to_period(freq_code)
+                    df_allocated['Period'] = df_allocated['Announcement date'].dt.to_period(freq_code)
                     grouped = df_allocated.groupby(["Period", "Active_Categories"])[metric_col].sum().unstack(fill_value=0)
                     plot_data = grouped.reindex(index=all_periods, columns=sorted_categories, fill_value=0)
                     if smoothing > 1:
@@ -851,7 +852,7 @@ if uploaded_file is not None or default_source.exists():
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
             timeseries_dates = st.date_input(
-                "Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
+                "Announcement date", [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()], min_value=raw_df["Announcement date"].min().date(), max_value=raw_df["Announcement date"].max().date(),
                 key="timeseries_dates",
                 help="The dataset contains interventions announced after 13/10/2008.",
             )
@@ -901,7 +902,7 @@ if uploaded_file is not None or default_source.exists():
                 )
                 st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
             else:
-                st.info("Select at least one implementing jurisdiction to display a time series.")
+                st.info("Select at least one Implementing jurisdiction to display a time series.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
