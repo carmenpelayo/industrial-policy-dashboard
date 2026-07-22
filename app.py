@@ -592,7 +592,6 @@ if uploaded_file is not None or default_source.exists():
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
             
         with plot_col:
-            st.markdown("### ⭐ Results")
             ins_df = execute_filter_pipeline(raw_df, inspector_config)
             st.metric("Matching interventions", f"{len(ins_df):,}")
             drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
@@ -625,7 +624,6 @@ if uploaded_file is not None or default_source.exists():
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 shared_filters = render_inline_filters(raw_df, "jurisdiction_shared", compact=True, include_title=False, include_implementing=False)
             with plot_col:
-                st.markdown("### Results")
                 if selected_jurisdictions:
                     jurisdiction_configs = []
                     for jurisdiction in selected_jurisdictions:
@@ -650,7 +648,6 @@ if uploaded_file is not None or default_source.exists():
                 with st.expander("More filters"):
                     metric_extra_filters = render_inline_filters(raw_df, "metric_extra", compact=True, include_title=False, include_implementing=False, include_dates=False, include_keyword=False)
             with plot_col:
-                st.markdown("### Results")
                 chart_defaults = ["Sector", "Motive", "Policy Instrument", "Assessment Type"]
                 metric_chart_config = metric_extra_filters.copy()
                 metric_chart_config.update({"imp_jurisdiction": [metric_jurisdiction], "dates": metric_dates, "keyword_search": metric_keyword})
@@ -701,7 +698,6 @@ if uploaded_file is not None or default_source.exists():
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
-            st.markdown("### ⭐ Results")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
@@ -863,7 +859,6 @@ if uploaded_file is not None or default_source.exists():
                     })
 
         with plot_col:
-            st.markdown("### Results")
             if series_configs:
                 st.plotly_chart(
                     build_country_timeseries_figure(
