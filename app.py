@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import openpyxl
 from pathlib import Path
-f
+
 INSPECTOR_DEFAULT_ANNOUNCEMENT_DATES = [pd.Timestamp("2025-01-01").date(), pd.Timestamp("2025-12-12").date()]
 
 try:
