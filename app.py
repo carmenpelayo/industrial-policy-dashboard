@@ -210,7 +210,7 @@ def execute_filter_pipeline(df, config):
     if config.get("gov_level"):
         df_out = df_out[df_out["Level of Government Implementation"].isin(config["gov_level"])]
     if config.get("trade_flow"):
-        df_out = df_out[df_out["Affected Trade flow"].isin(config["trade_flow"])]
+        df_out = df_out[df_out["Affected Trade Flow"].isin(config["trade_flow"])]
     if config.get("assessments"):
         df_out = df_out[df_out["Initial Assessment"].isin(config["assessments"])]
         
@@ -305,7 +305,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
-    all_flow = sorted(df_source["Affected Trade flow"].dropna().unique().tolist())
+    all_flow = sorted(df_source["Affected Trade Flow"].dropna().unique().tolist())
     
     hs_opts = list(dict.fromkeys(HS_SECTIONS.values()))
     cpc_opts = [f"{v} ({k})" for k, v in CPC_SECTIONS.items()]
