@@ -575,9 +575,36 @@ st.markdown("""
     button[kind="primary"] { background: #072146 !important; border-color: #072146 !important; color: white !important; }
     button[kind="primary"]:hover { background: #004481 !important; border-color: #004481 !important; }
     button[kind="primary"]:focus { box-shadow: 0 0 0 0.15rem rgba(7, 33, 70, 0.22) !important; }
-    [data-testid="stSlider"] [role="slider"] { background: #072146 !important; border-color: #072146 !important; }
+    /* Override Streamlit/BaseWeb's default red primary accent throughout widgets. */
+    [data-testid="stSlider"] [role="slider"] {
+        background: #072146 !important; border-color: #072146 !important;
+    }
+    [data-testid="stSlider"] [data-baseweb="slider"] [role="track"] {
+        background: #072146 !important;
+    }
+    [data-testid="stSlider"] [data-baseweb="slider"] [role="progressbar"] {
+        background: #072146 !important;
+    }
+    [data-testid="stSlider"] [data-baseweb="slider"] > div:first-child > div {
+        background: #072146 !important;
+    }
+    [data-baseweb="tag"] {
+        background-color: #072146 !important; color: #FFFFFF !important;
+    }
+    [data-baseweb="tag"] [role="button"] { color: #FFFFFF !important; }
     [data-testid="stCheckbox"] input, [data-testid="stRadio"] input { accent-color: #072146 !important; }
-    div[data-baseweb="select"] > div:focus-within { border-color: #004481 !important; box-shadow: 0 0 0 1px #004481 !important; }
+    [data-testid="stCheckbox"] label[data-checked="true"] > div,
+    [data-testid="stRadio"] label[data-checked="true"] > div {
+        background-color: #072146 !important; border-color: #072146 !important;
+    }
+    div[data-baseweb="select"] > div:focus-within,
+    div[data-baseweb="input"] > div:focus-within,
+    div[data-baseweb="textarea"] > div:focus-within {
+        border-color: #004481 !important; box-shadow: 0 0 0 1px #004481 !important;
+    }
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        color: #072146 !important; border-bottom-color: #072146 !important;
+    }
     div[data-testid="stExpander"] details { border: 0; }
     div[data-testid="stExpander"] summary p { font-weight: 600; }
     [data-testid="stTabs"] button { font-weight: 600; }
