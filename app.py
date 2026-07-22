@@ -644,7 +644,7 @@ if uploaded_file is not None or default_source.exists():
                 st.markdown("#### 1. Implementing Jurisdictions")
                 st.caption("Select the countries or groups to analyze.")
                 selected_jurisdictions = st.multiselect("Implementing Jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
-                st.markdown("#### 2. Shared settings")
+                st.markdown("#### 2. General settings")
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
@@ -653,12 +653,12 @@ if uploaded_file is not None or default_source.exists():
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
-                    shared_filters = render_inline_filters(raw_df, "jurisdiction_shared", compact=True, include_title=False, include_implementing=False, include_dates=False, advanced_expander=False)
+                    General_filters = render_inline_filters(raw_df, "jurisdiction_General", compact=True, include_title=False, include_implementing=False, include_dates=False, advanced_expander=False)
             with plot_col:
                 if selected_jurisdictions:
                     jurisdiction_configs = []
                     for jurisdiction in selected_jurisdictions:
-                        config = shared_filters.copy()
+                        config = General_filters.copy()
                         config.update({"title": jurisdiction.replace("Group: ", ""), "imp_jurisdiction": [jurisdiction], "dates": jurisdiction_dates})
                         jurisdiction_configs.append(config)
                     st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
@@ -668,9 +668,11 @@ if uploaded_file is not None or default_source.exists():
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Select an Implementing Jurisdiction")
+                st.markdown("#### 1. Implementing Jurisdiction")
+                st.caption("Select a country or group to analyze.")
                 metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
-                st.markdown("#### 2. Configure shared settings")
+                st.markdown("#### 2. General settings")
+                st.caption("Configure the filters shared across charts.")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
@@ -846,8 +848,8 @@ if uploaded_file is not None or default_source.exists():
                 max_selections=10, key="timeseries_countries",
                 help="Select the countries or groups to be displayed (1-10).",
             )
-            st.markdown("#### 2. Shared settings")
-            st.caption("Configure the shared settings across charts.")
+            st.markdown("#### 2. General settings")
+            st.caption("Configure the General settings across charts.")
             timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
