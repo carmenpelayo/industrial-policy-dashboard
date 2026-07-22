@@ -649,7 +649,7 @@ if uploaded_file is not None or default_source.exists():
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                jurisdiction_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -674,7 +674,7 @@ if uploaded_file is not None or default_source.exists():
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                metric_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
                 metric_keyword = st.text_input("Keyword search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
                 with st.expander("More filters"):
@@ -852,7 +852,7 @@ if uploaded_file is not None or default_source.exists():
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
             timeseries_dates = st.date_input(
-                "Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
+                "Announcement date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
                 key="timeseries_dates",
                 help="The dataset contains interventions announced after 13/10/2008.",
             )
