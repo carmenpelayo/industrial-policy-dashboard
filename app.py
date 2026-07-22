@@ -407,7 +407,7 @@ def render_smoothing_slider(freq_choice, key, default_value=1):
         st.session_state[key] = min(default_value, maximum)
     return st.slider(
         "Smoothing (periods)", 1, maximum, key=key,
-        help="A value of 1 leaves the series unchanged.",
+        help="Applies a moving-average over the selected periods to the series.",
     )
 
 def build_visualization_figure(df_source, configs, disaggregation, freq_choice, metric_choice, smoothing, compact_layout=False):
@@ -564,6 +564,12 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
 st.set_page_config(page_title="NIPO Industrial Policy Explorer", layout="wide")
 st.markdown("""
 <style>
+    /* Keep Streamlit and BaseWeb components on the BBVA brand palette. */
+    :root, .stApp {
+        --primary-color: #072146 !important;
+        --primary-color-light: #004481 !important;
+        --secondary-background-color: #F1F3F5 !important;
+    }
     .stApp { background: #F7F8F8; }
     .stMainBlockContainer, .block-container { max-width: none; padding: 2.5rem 4rem 3rem; }
     .stAppHeader { display: none; }
@@ -577,7 +583,8 @@ st.markdown("""
     button[kind="primary"]:focus { box-shadow: 0 0 0 0.15rem rgba(7, 33, 70, 0.22) !important; }
     /* Override Streamlit/BaseWeb's default red primary accent throughout widgets. */
     [data-testid="stSlider"] [role="slider"] {
-        background: #072146 !important; border-color: #072146 !important;
+        background: #072146 !important; background-color: #072146 !important;
+        border-color: #072146 !important; box-shadow: 0 0 0 1px #072146 !important;
     }
     [data-testid="stSlider"] [data-baseweb="slider"] [role="track"] {
         background: #072146 !important;
@@ -588,11 +595,39 @@ st.markdown("""
     [data-testid="stSlider"] [data-baseweb="slider"] > div:first-child > div {
         background: #072146 !important;
     }
+    [data-testid="stSlider"] [data-baseweb="slider"] div[style*="linear-gradient"],
+    [data-testid="stSlider"] [data-baseweb="slider"] div[style*="rgb(255"],
+    [data-testid="stSlider"] [data-baseweb="slider"] [aria-valuenow] {
+        background: #072146 !important;
+        border-color: #072146 !important;
+    }
     [data-baseweb="tag"] {
         background-color: #072146 !important; color: #FFFFFF !important;
     }
     [data-baseweb="tag"] [role="button"] { color: #FFFFFF !important; }
     [data-testid="stCheckbox"] input, [data-testid="stRadio"] input { accent-color: #072146 !important; }
+    [data-testid="stCheckbox"] label:has(input:checked) > span > div,
+    [data-testid="stCheckbox"] label:has(input:checked) > div:first-child,
+    [data-testid="stRadio"] label:has(input:checked) > span > div,
+    [data-testid="stRadio"] label:has(input:checked) > div:first-child {
+        background-color: #072146 !important;
+        border-color: #072146 !important;
+    }
+    [data-testid="stCheckbox"] input:checked + div,
+    [data-testid="stCheckbox"] input:checked ~ div,
+    [data-testid="stCheckbox"] [role="checkbox"][aria-checked="true"],
+    [data-testid="stRadio"] input:checked + div,
+    [data-testid="stRadio"] input:checked ~ div,
+    [data-testid="stRadio"] [role="radio"][aria-checked="true"] {
+        background: #072146 !important;
+        background-color: #072146 !important;
+        border-color: #072146 !important;
+    }
+    [data-testid="stCheckbox"] label:has(input:checked) svg,
+    [data-testid="stRadio"] label:has(input:checked) svg {
+        fill: #FFFFFF !important;
+        color: #FFFFFF !important;
+    }
     [data-testid="stCheckbox"] label[data-checked="true"] > div,
     [data-testid="stRadio"] label[data-checked="true"] > div {
         background-color: #072146 !important; border-color: #072146 !important;
