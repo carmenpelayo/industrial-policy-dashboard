@@ -322,7 +322,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     announcement_dates = date_bounds("Announcement Date")
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="Data is available since 2008.") if include_dates else get_fallback("dates", default_dates)
+    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
@@ -647,7 +647,7 @@ if uploaded_file is not None or default_source.exists():
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="Data is available since 2008.")
+                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -672,8 +672,7 @@ if uploaded_file is not None or default_source.exists():
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
-                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="Data is available since 2008.")
-                st.caption("Data is available since 2008.")
+                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
                 metric_keyword = st.text_input("Keyword Search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
                 with st.expander("More filters"):
@@ -705,7 +704,7 @@ if uploaded_file is not None or default_source.exists():
         with diy_tab:
             filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### 1. Configure the general figure settings")
+            st.markdown("#### 1. General settings")
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
                 "Sector", "Motive", "Policy Instrument", "Assessment Type",
@@ -715,8 +714,8 @@ if uploaded_file is not None or default_source.exists():
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = render_smoothing_slider(freq_choice, "diy_smoothing")
 
-            st.markdown("#### 2. Customize the subplots")
-            st.caption("Now configure the individual subplots to be displayed.")
+            st.markdown("#### 2. Subplot customization")
+            st.caption("Customize the individual subplots to be displayed.")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
             chart_number = int(chart_to_customize.split()[-1])
             saved_configs = st.session_state.get("saved_subplot_configs", {})
@@ -839,22 +838,22 @@ if uploaded_file is not None or default_source.exists():
     with tab_timeseries:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("#### 1. Select implementing jurisdictions")
+            st.markdown("#### 1. Implementing jurisdictions")
             selected_series_countries = st.multiselect(
-                "Countries or groups to plot", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
+                "Implementing Jurisdiction", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
                 max_selections=10, key="timeseries_countries",
-                help="Each selected country or group is plotted as its own line.",
+                help="Select the countries or groups to be displayed (1-10).",
             )
-            st.markdown("#### 2. Select shared settings")
+            st.markdown("#### 2. Shared settings")
+            st.caption("Configure the general figure settings.")
             timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
             timeseries_dates = st.date_input(
                 "Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
                 key="timeseries_dates",
-                help="Data is available since 2008.",
+                help="The dataset contains interventions announced after 13/10/2008.",
             )
-            st.caption("Data is available since 2008.")
             timeseries_normalize = st.checkbox("Normalize", key="timeseries_normalize", help="Express every series as standard deviations from its mean.")
 
             if "timeseries_custom_events" not in st.session_state:
@@ -868,6 +867,7 @@ if uploaded_file is not None or default_source.exists():
                     st.session_state.timeseries_event_name_input = ""
 
             st.markdown("#### 3. Add custom events")
+            st.caption("Mark custom shocks in the plot.")
             available_events = st.session_state.timeseries_custom_events
             with st.container():
                 st.text_input("Event Name", key="timeseries_event_name_input")
@@ -875,6 +875,7 @@ if uploaded_file is not None or default_source.exists():
                 st.button("Add", key="timeseries_add_event", on_click=add_timeseries_custom_event)
 
             st.markdown("#### 4. Customize each country series")
+            st.caption("Customize the individual countries' time series.")
             series_configs = []
             for index, country in enumerate(selected_series_countries, start=1):
                 series_key = re.sub(r"\W+", "_", country)
