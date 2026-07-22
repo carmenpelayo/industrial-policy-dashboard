@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import openpyxl
 from pathlib import Path
-
+f
 INSPECTOR_DEFAULT_ANNOUNCEMENT_DATES = [pd.Timestamp("2025-01-01").date(), pd.Timestamp("2025-12-12").date()]
 
 try:
@@ -470,9 +470,9 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
         if "maxheight" in go.layout.Legend()._valid_props:
             compact_legend["maxheight"] = 0.14
         fig.update_layout(
-            barmode="stack", hovermode="x unified", height=380,
+            barmode="stack", hovermode="x unified", height=300,
             #paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=38, r=18, t=38, b=48),
-            paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=15, r=15, t=15, b=15),
+            paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=0, r=0, t=0, b=0),
             legend=compact_legend,
         )
     else:
