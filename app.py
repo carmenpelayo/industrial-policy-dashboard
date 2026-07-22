@@ -867,15 +867,14 @@ if uploaded_file is not None or default_source.exists():
                     st.session_state.timeseries_custom_events[event_name] = pd.to_datetime(event_date)
                     st.session_state.timeseries_event_name_input = ""
 
-            st.markdown("#### Custom events")
+            st.markdown("#### 3. Add custom events")
             available_events = st.session_state.timeseries_custom_events
             with st.container():
-                st.markdown("##### Add Custom Event")
                 st.text_input("Event Name", key="timeseries_event_name_input")
                 st.date_input("Event Date", value=None, key="timeseries_event_date_input")
                 st.button("Add", key="timeseries_add_event", on_click=add_timeseries_custom_event)
 
-            st.markdown("### 3. Customize each country series")
+            st.markdown("#### 4. Customize each country series")
             series_configs = []
             for index, country in enumerate(selected_series_countries, start=1):
                 series_key = re.sub(r"\W+", "_", country)
