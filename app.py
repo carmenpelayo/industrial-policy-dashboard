@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 import openpyxl
 from pathlib import Path
 
-DEFAULT_ANNOUNCEMENT_DATES = [pd.Timestamp("2025-01-01").date(), pd.Timestamp("2025-12-12").date()]
+INSPECTOR_DEFAULT_ANNOUNCEMENT_DATES = [pd.Timestamp("2025-01-01").date(), pd.Timestamp("2025-12-12").date()]
 
 try:
     from streamlit_pdf_viewer import pdf_viewer
@@ -300,7 +300,7 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 # 5. INLINE FILTER SELECTION MAPPING BUILDER
 # ==========================================
-def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, include_implementing=True, include_dates=True, include_keyword=True, advanced_expander=True):
+def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, include_implementing=True, include_dates=True, include_keyword=True, advanced_expander=True, default_announcement_dates=None):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
     all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
@@ -319,8 +319,12 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
         return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
+    announcement_dates = date_bounds("Announcement Date")
+    default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement Date", get_fallback("dates", DEFAULT_ANNOUNCEMENT_DATES), key=f"{key_prefix}_dt") if include_dates else get_fallback("dates", DEFAULT_ANNOUNCEMENT_DATES)
+    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="Data is available since 2008.") if include_dates else get_fallback("dates", default_dates)
+    if include_dates:
+        st.caption("Data is available since 2008.")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
@@ -384,7 +388,7 @@ def build_default_config(df_source, title="", implementing_jurisdiction=None, ke
     return {
         "title": title,
         "keyword_search": keyword_search,
-        "dates": dates or DEFAULT_ANNOUNCEMENT_DATES,
+        "dates": dates or date_bounds("Announcement Date"),
         "implementation_dates": date_bounds("Implementation Date"),
         "removal_dates": date_bounds("Removal Date"),
         "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
@@ -417,7 +421,7 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
     chart_count = len(configs)
     rows, cols = (1, 1) if chart_count == 1 else ((1, 2) if chart_count == 2 else (2, 2))
     fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.14, horizontal_spacing=0.16)
-    selected_date_ranges = [cfg.get("dates", DEFAULT_ANNOUNCEMENT_DATES) for cfg in configs if len(cfg.get("dates", [])) == 2]
+    selected_date_ranges = [cfg["dates"] for cfg in configs if len(cfg.get("dates", [])) == 2]
     date_start = min(pd.to_datetime(date_range[0]) for date_range in selected_date_ranges) if selected_date_ranges else pd.Timestamp("2010-01-01")
     date_end = max(pd.to_datetime(date_range[1]) for date_range in selected_date_ranges) if selected_date_ranges else pd.Timestamp("2025-12-31")
     all_periods = pd.period_range(start=date_start, end=date_end, freq=freq_code)
@@ -445,9 +449,10 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
                 plot_data = plot_data.rolling(window=smoothing, min_periods=1).mean()
         else:
             plot_data = pd.DataFrame(0.0, index=all_periods, columns=sorted_categories)
+        x_values = plot_data.index.to_timestamp() if freq_choice == "Daily" else plot_data.index.astype(str)
         for category in sorted_categories:
             fig.add_trace(
-                go.Bar(x=plot_data.index.astype(str), y=plot_data[category], name=category,
+                go.Bar(x=x_values, y=plot_data[category], name=category,
                        marker_color=color_map[category], hovertemplate="%{fullData.name}: %{y}<extra></extra>",
                        showlegend=(idx == 0), legendgroup=category), row=row, col=col,
             )
@@ -478,6 +483,8 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
             legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5),
         )
     fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+    if freq_choice == "Daily":
+        fig.update_xaxes(type="date", tickformat="%d %b %Y", hoverformat="%d %b %Y")
     fig.update_yaxes(title_text=metric_axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"],
                      gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
     return fig
@@ -545,6 +552,8 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
         legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5),
     )
     fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+    if freq_choice == "Daily":
+        fig.update_xaxes(tickformat="%d %b %Y", hoverformat="%d %b %Y")
     fig.update_yaxes(title_text=axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"],
                      gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
     return fig
@@ -607,7 +616,7 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### Configure the output table")
             st.caption("Choose the interventions to include in the output table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
+            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False, default_announcement_dates=INSPECTOR_DEFAULT_ANNOUNCEMENT_DATES)
             
         with plot_col:
             ins_df = execute_filter_pipeline(raw_df, inspector_config)
@@ -639,7 +648,9 @@ if uploaded_file is not None or default_source.exists():
                 st.markdown("### 2. Configure shared settings and filters")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
-                jurisdiction_dates = st.date_input("Announcement Date", DEFAULT_ANNOUNCEMENT_DATES, key="jurisdiction_dates")
+                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
+                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="Data is available since 2008.")
+                st.caption("Data is available since 2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -663,7 +674,9 @@ if uploaded_file is not None or default_source.exists():
                 st.markdown("### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
-                metric_dates = st.date_input("Announcement Date", DEFAULT_ANNOUNCEMENT_DATES, key="metric_dates")
+                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
+                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="Data is available since 2008.")
+                st.caption("Data is available since 2008.")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
                 metric_keyword = st.text_input("Keyword Search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
                 with st.expander("More filters"):
@@ -749,7 +762,7 @@ if uploaded_file is not None or default_source.exists():
             chart_count = len(configs)
             rows, cols = (1, 1) if chart_count == 1 else ((1, 2) if chart_count == 2 else (2, 2))
             fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, vertical_spacing=0.14, horizontal_spacing=0.16)
-            selected_date_ranges = [cfg.get("dates", DEFAULT_ANNOUNCEMENT_DATES) for cfg in configs if len(cfg.get("dates", [])) == 2]
+            selected_date_ranges = [cfg["dates"] for cfg in configs if len(cfg.get("dates", [])) == 2]
             date_start = min(pd.to_datetime(date_range[0]) for date_range in selected_date_ranges) if selected_date_ranges else pd.Timestamp("2010-01-01")
             date_end = max(pd.to_datetime(date_range[1]) for date_range in selected_date_ranges) if selected_date_ranges else pd.Timestamp("2025-12-31")
             all_periods = pd.period_range(start=date_start, end=date_end, freq=freq_code)
@@ -783,7 +796,7 @@ if uploaded_file is not None or default_source.exists():
                 else:
                     plot_data = pd.DataFrame(0.0, index=all_periods, columns=sorted_categories)
                     
-                x_axis_labels = plot_data.index.astype(str).tolist()
+                x_axis_labels = plot_data.index.to_timestamp().tolist() if freq_choice == "Daily" else plot_data.index.astype(str).tolist()
                 
                 for cat in sorted_categories:
                     y_vals = plot_data[cat].tolist()
@@ -809,6 +822,8 @@ if uploaded_file is not None or default_source.exists():
                 legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5)
             )
             fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+            if freq_choice == "Daily":
+                fig.update_xaxes(type="date", tickformat="%d %b %Y", hoverformat="%d %b %Y")
             # Let Plotly use its original compact SI formatting (e.g. 250k,
             # 250.3k) for tick values; the axis title provides the USD-million
             # unit context.
@@ -839,9 +854,11 @@ if uploaded_file is not None or default_source.exists():
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
             timeseries_dates = st.date_input(
-                "Announcement Date", DEFAULT_ANNOUNCEMENT_DATES,
+                "Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
                 key="timeseries_dates",
+                help="Data is available since 2008.",
             )
+            st.caption("Data is available since 2008.")
             timeseries_normalize = st.checkbox("Normalize", key="timeseries_normalize", help="Express every series as standard deviations from its mean.")
 
             if "timeseries_custom_events" not in st.session_state:
