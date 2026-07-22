@@ -323,7 +323,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     dt = st.date_input("Announcement date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
-    imp = st.multiselect("Implementing furisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
+    imp = st.multiselect("Implementing jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
@@ -641,9 +641,9 @@ if uploaded_file is not None or default_source.exists():
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Implementing Jurisdictions")
+                st.markdown("#### 1. Implementing jurisdictions")
                 st.caption("Select the countries or groups to analyze.")
-                selected_jurisdictions = st.multiselect("Implementing Jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
+                selected_jurisdictions = st.multiselect("Implementing jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
                 st.markdown("#### 2. General settings")
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
@@ -663,14 +663,14 @@ if uploaded_file is not None or default_source.exists():
                         jurisdiction_configs.append(config)
                     st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
                 else:
-                    st.info("Select at least one Implementing Jurisdiction to display the comparison figure.")
+                    st.info("Select at least one implementing jurisdiction to display the comparison figure.")
 
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Implementing Jurisdiction")
+                st.markdown("#### 1. Implementing jurisdiction")
                 st.caption("Select a country or group to analyze.")
-                metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
+                metric_jurisdiction = st.selectbox("Implementing jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
                 st.markdown("#### 2. General settings")
                 st.caption("Configure the filters shared across charts.")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
@@ -842,7 +842,7 @@ if uploaded_file is not None or default_source.exists():
     with tab_timeseries:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("#### 1. Implementing Jurisdictions")
+            st.markdown("#### 1. Implementing jurisdictions")
             st.caption("Select the countries or groups to analyze (1-10).")
             selected_series_countries = st.multiselect(
                 "Implementing jurisdiction(s)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
@@ -904,7 +904,7 @@ if uploaded_file is not None or default_source.exists():
                 )
                 st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
             else:
-                st.info("Select at least one Implementing Jurisdiction to display a time series.")
+                st.info("Select at least one implementing jurisdiction to display a time series.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
