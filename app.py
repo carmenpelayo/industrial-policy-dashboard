@@ -221,17 +221,17 @@ def execute_filter_pipeline(df, config):
                 # Resolve World exclusively from individual country values in
                 # the dataset. UI group shortcuts are never included, so no
                 # country can be counted twice.
-                resolved_imp.update(df["Implementing jurisdiction"].dropna().unique())
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
             resolved_imp.update(COUNTRY_GROUPS.get(clean, [clean]))
-        df_out = df_out[df_out["Implementing jurisdiction"].isin(list(resolved_imp))]
+        df_out = df_out[df_out["Implementing Jurisdiction"].isin(list(resolved_imp))]
         
     if config.get("aff_jurisdiction"):
         resolved_aff = set()
         for item in config["aff_jurisdiction"]:
             if item == "World":
-                resolved_imp.update(df["Implementing jurisdiction"].dropna().unique())
+                resolved_imp.update(df["Implementing Jurisdiction"].dropna().unique())
                 continue
             clean = item.replace("Group: ", "")
             resolved_aff.update(COUNTRY_GROUPS.get(clean, [clean]))
@@ -302,7 +302,7 @@ def apply_fractional_allocation(df, col_type):
 # ==========================================
 def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False, include_title=True, include_implementing=True, include_dates=True, include_keyword=True, advanced_expander=True, default_announcement_dates=None):
     groups_list = [f"Group: {k}" for k in COUNTRY_GROUPS.keys()]
-    all_imp = ["World"] + groups_list + sorted(df_source["Implementing jurisdiction"].dropna().unique().tolist())
+    all_imp = ["World"] + groups_list + sorted(df_source["Implementing Jurisdiction"].dropna().unique().tolist())
     all_aff = ["World"] + groups_list + sorted(list(set(x for l in df_source["Affected List"].dropna() for x in l)))
     all_gov = ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"] + sorted([x for x in df_source["Level of Government Implementation"].dropna().unique().tolist() if x not in ["Independent Fiscal Institutions (IFI)", "National Framework Implementations (NFI)"]])
     all_flow = sorted(df_source["Affected Trade flow"].dropna().unique().tolist())
@@ -322,8 +322,8 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     announcement_dates = date_bounds("Announcement Date")
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
-    imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
+    dt = st.date_input("Announcement date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
+    imp = st.multiselect("Implementing furisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
@@ -635,15 +635,15 @@ if uploaded_file is not None or default_source.exists():
         chart_options = ["Sector", "Motive", "Policy instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]
         frequency_options = ["Daily", "Monthly", "Quarterly", "Yearly"]
         measure_options = ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"]
-        jurisdiction_options = sorted(raw_df["Implementing jurisdiction"].dropna().unique().tolist())
+        jurisdiction_options = sorted(raw_df["Implementing Jurisdiction"].dropna().unique().tolist())
         jurisdiction_selection_options = ["World"] + [f"Group: {name}" for name in COUNTRY_GROUPS] + jurisdiction_options
 
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Implementing jurisdictions")
+                st.markdown("#### 1. Implementing Jurisdictions")
                 st.caption("Select the countries or groups to analyze.")
-                selected_jurisdictions = st.multiselect("Implementing jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
+                selected_jurisdictions = st.multiselect("Implementing Jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
                 st.markdown("#### 2. Shared settings")
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
@@ -663,13 +663,13 @@ if uploaded_file is not None or default_source.exists():
                         jurisdiction_configs.append(config)
                     st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
                 else:
-                    st.info("Select at least one Implementing jurisdiction to display the comparison figure.")
+                    st.info("Select at least one Implementing Jurisdiction to display the comparison figure.")
 
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Select an Implementing jurisdiction")
-                metric_jurisdiction = st.selectbox("Implementing jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
+                st.markdown("#### 1. Select an Implementing Jurisdiction")
+                metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
                 st.markdown("#### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
@@ -840,7 +840,7 @@ if uploaded_file is not None or default_source.exists():
     with tab_timeseries:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("#### 1. Implementing jurisdictions")
+            st.markdown("#### 1. Implementing Jurisdictions")
             selected_series_countries = st.multiselect(
                 "Select a country or group to analyze.", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
                 max_selections=10, key="timeseries_countries",
@@ -902,7 +902,7 @@ if uploaded_file is not None or default_source.exists():
                 )
                 st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
             else:
-                st.info("Select at least one Implementing jurisdiction to display a time series.")
+                st.info("Select at least one Implementing Jurisdiction to display a time series.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
