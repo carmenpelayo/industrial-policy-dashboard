@@ -105,11 +105,11 @@ POLICY_COLS = ["Is Export Policy", "Is Import Policy", "Is Trade Defence", "Is S
 @st.cache_data
 def load_source_data(uploaded_file):
     df = pd.read_excel(uploaded_file)
-    df["Announcement date"] = pd.to_datetime(df["Announcement date"], errors="coerce")
-    for date_col in ["Implementation date", "Removal date"]:
+    df["Announcement Date"] = pd.to_datetime(df["Announcement Date"], errors="coerce")
+    for date_col in ["Implementation Date", "Removal Date"]:
         if date_col in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-    df = df.dropna(subset=["Announcement date"])
+    df = df.dropna(subset=["Announcement Date"])
     df = df[df["Levels of Policy Intervention"] != "Firm-specific"]
     
     df["Trade Covered (USD Million)"] = pd.to_numeric(df["Trade Covered (USD Million)"], errors='coerce').fillna(0)
@@ -195,9 +195,9 @@ def evaluate_boolean_query(title_text, query_str):
 def execute_filter_pipeline(df, config):
     df_out = df.copy()
     if len(config.get("dates", [])) == 2:
-        df_out = df_out[(df_out["Announcement date"] >= pd.to_datetime(config["dates"][0])) & 
-                        (df_out["Announcement date"] <= pd.to_datetime(config["dates"][1]))]
-    for date_col, config_key in [("Implementation date", "implementation_dates"), ("Removal date", "removal_dates")]:
+        df_out = df_out[(df_out["Announcement Date"] >= pd.to_datetime(config["dates"][0])) & 
+                        (df_out["Announcement Date"] <= pd.to_datetime(config["dates"][1]))]
+    for date_col, config_key in [("Implementation Date", "implementation_dates"), ("Removal Date", "removal_dates")]:
         if date_col in df_out.columns and len(config.get(config_key, [])) == 2:
             df_out = df_out[
                 df_out[date_col].isna() |
@@ -315,14 +315,14 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
 
     def date_bounds(column):
         if column not in df_source.columns:
-            return [df_source["Announcement date"].min().date(), df_source["Announcement date"].max().date()]
+            return [df_source["Announcement Date"].min().date(), df_source["Announcement Date"].max().date()]
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
-        return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement date")
+        return [values.min().date(), values.max().date()] if not values.empty else date_bounds("Announcement Date")
 
-    announcement_dates = date_bounds("Announcement date")
+    announcement_dates = date_bounds("Announcement Date")
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
-    dt = st.date_input("Announcement date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
+    dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
@@ -332,8 +332,8 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
 
     advanced = st.expander("More filters", expanded=not compact) if advanced_expander else st.container()
     with advanced:
-        implementation_dates = st.date_input("Implementation date", get_fallback("implementation_dates", date_bounds("Implementation date")), key=f"{key_prefix}_implementation_dates", help="Select the implementation-date range to include.")
-        removal_dates = st.date_input("Removal date", get_fallback("removal_dates", date_bounds("Removal date")), key=f"{key_prefix}_removal_dates", help="Select the removal-date range to include.")
+        implementation_dates = st.date_input("Implementation date", get_fallback("implementation_dates", date_bounds("Implementation Date")), key=f"{key_prefix}_implementation_dates", help="Select the implementation-date range to include.")
+        removal_dates = st.date_input("Removal date", get_fallback("removal_dates", date_bounds("Removal Date")), key=f"{key_prefix}_removal_dates", help="Select the removal-date range to include.")
         gov = st.multiselect("Government level", all_gov, default=get_fallback("gov_level", []), key=f"{key_prefix}_gov")
         flow = st.multiselect("Trade flow", all_flow, default=get_fallback("trade_flow", []), key=f"{key_prefix}_flow")
         assess = st.multiselect("Assessment", ["Liberalising", "Distortive"], default=get_fallback("assessments", []), key=f"{key_prefix}_assess")
@@ -380,15 +380,15 @@ def build_default_config(df_source, title="", implementing_jurisdiction=None, ke
     def date_bounds(column):
         values = pd.to_datetime(df_source[column], errors="coerce").dropna()
         if values.empty:
-            values = pd.to_datetime(df_source["Announcement date"], errors="coerce").dropna()
+            values = pd.to_datetime(df_source["Announcement Date"], errors="coerce").dropna()
         return [values.min().date(), values.max().date()]
 
     return {
         "title": title,
         "keyword_search": keyword_search,
-        "dates": dates or date_bounds("Announcement date"),
-        "implementation_dates": date_bounds("Implementation date"),
-        "removal_dates": date_bounds("Removal date"),
+        "dates": dates or date_bounds("Announcement Date"),
+        "implementation_dates": date_bounds("Implementation Date"),
+        "removal_dates": date_bounds("Removal Date"),
         "imp_jurisdiction": [implementing_jurisdiction] if implementing_jurisdiction else [],
         "aff_jurisdiction": [], "gov_level": [], "trade_flow": [], "assessments": [],
         "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
@@ -440,7 +440,7 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
         row, col = (idx // cols) + 1, (idx % cols) + 1
         if not df_allocated.empty:
             df_allocated = df_allocated.copy()
-            df_allocated["Period"] = df_allocated["Announcement date"].dt.to_period(freq_code)
+            df_allocated["Period"] = df_allocated["Announcement Date"].dt.to_period(freq_code)
             grouped = df_allocated.groupby(["Period", "Active_Categories"])[metric_col].sum().unstack(fill_value=0)
             plot_data = grouped.reindex(index=all_periods, columns=sorted_categories, fill_value=0)
             if smoothing > 1:
@@ -504,7 +504,7 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
         if len(dates) == 2:
             periods = pd.period_range(pd.to_datetime(dates[0]), pd.to_datetime(dates[1]), freq=freq_code)
         elif not filtered.empty:
-            periods = pd.period_range(filtered["Announcement date"].min(), filtered["Announcement date"].max(), freq=freq_code)
+            periods = pd.period_range(filtered["Announcement Date"].min(), filtered["Announcement Date"].max(), freq=freq_code)
         else:
             periods = pd.period_range("2010-01-01", "2025-12-31", freq=freq_code)
 
@@ -512,7 +512,7 @@ def build_country_timeseries_figure(df_source, series_configs, metric_choice, fr
             values = pd.Series(0.0, index=periods)
         else:
             filtered = filtered.copy()
-            filtered["Period"] = filtered["Announcement date"].dt.to_period(freq_code)
+            filtered["Period"] = filtered["Announcement Date"].dt.to_period(freq_code)
             if metric_col is None:
                 values = filtered.groupby("Period").size().astype(float)
             else:
@@ -648,8 +648,8 @@ if uploaded_file is not None or default_source.exists():
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
-                visualization_dates = [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()]
-                jurisdiction_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
+                jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -673,8 +673,8 @@ if uploaded_file is not None or default_source.exists():
                 st.markdown("#### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
-                visualization_dates = [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()]
-                metric_dates = st.date_input("Announcement date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
+                visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
+                metric_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="metric_dates", help="The dataset contains interventions announced after 13/10/2008.")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
                 metric_keyword = st.text_input("Keyword search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
                 with st.expander("More filters"):
@@ -785,7 +785,7 @@ if uploaded_file is not None or default_source.exists():
                 df_allocated = data_matrices[idx]
                 
                 if not df_allocated.empty:
-                    df_allocated['Period'] = df_allocated['Announcement date'].dt.to_period(freq_code)
+                    df_allocated['Period'] = df_allocated['Announcement Date'].dt.to_period(freq_code)
                     grouped = df_allocated.groupby(["Period", "Active_Categories"])[metric_col].sum().unstack(fill_value=0)
                     plot_data = grouped.reindex(index=all_periods, columns=sorted_categories, fill_value=0)
                     if smoothing > 1:
@@ -852,7 +852,7 @@ if uploaded_file is not None or default_source.exists():
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
             timeseries_dates = st.date_input(
-                "Announcement date", [raw_df["Announcement date"].min().date(), raw_df["Announcement date"].max().date()], min_value=raw_df["Announcement date"].min().date(), max_value=raw_df["Announcement date"].max().date(),
+                "Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
                 key="timeseries_dates",
                 help="The dataset contains interventions announced after 13/10/2008.",
             )
