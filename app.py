@@ -843,13 +843,13 @@ if uploaded_file is not None or default_source.exists():
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
             st.markdown("#### 1. Implementing Jurisdictions")
+            st.caption("Select the countries or groups to analyze (1-10).")
             selected_series_countries = st.multiselect(
-                "Select a country or group to analyze.", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
+                "Implementing jurisdiction(s)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
                 max_selections=10, key="timeseries_countries",
-                help="Select the countries or groups to be displayed (1-10).",
             )
             st.markdown("#### 2. General settings")
-            st.caption("Configure the General settings across charts.")
+            st.caption("Configure the settings shared across series.")
             timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
@@ -870,7 +870,7 @@ if uploaded_file is not None or default_source.exists():
                     st.session_state.timeseries_custom_events[event_name] = pd.to_datetime(event_date)
                     st.session_state.timeseries_event_name_input = ""
 
-            st.markdown("#### 3. Add custom events")
+            st.markdown("#### 3. Custom events")
             st.caption("Mark custom shocks in the plot.")
             available_events = st.session_state.timeseries_custom_events
             with st.container():
@@ -878,7 +878,7 @@ if uploaded_file is not None or default_source.exists():
                 st.date_input("Event Date", value=None, key="timeseries_event_date_input")
                 st.button("Add", key="timeseries_add_event", on_click=add_timeseries_custom_event)
 
-            st.markdown("#### 4. Customize each country series")
+            st.markdown("#### 4. Series customization")
             st.caption("Customize the individual countries' time series.")
             series_configs = []
             for index, country in enumerate(selected_series_countries, start=1):
