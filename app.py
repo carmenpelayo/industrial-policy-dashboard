@@ -642,7 +642,7 @@ if uploaded_file is not None or default_source.exists():
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
                 st.markdown("#### 1. Implementing jurisdictions")
-                st.caption("Select the countries or groups to analyze.").
+                st.caption("Select the countries or groups to analyze.")
                 selected_jurisdictions = st.multiselect("Implementing jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
                 st.markdown("#### 2. Shared settings")
                 st.caption("Set the general figure settings.")
