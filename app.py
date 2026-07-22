@@ -641,9 +641,10 @@ if uploaded_file is not None or default_source.exists():
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Select implementing jurisdictions")
-                selected_jurisdictions = st.multiselect("Jurisdictions to compare (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
-                st.markdown("#### 2. Configure shared settings and filters")
+                st.markdown("#### 1. Implementing jurisdictions")
+                selected_jurisdictions = st.multiselect("Select the countries or groups to compare (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
+                st.markdown("#### 2. Shared settings")
+                st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
@@ -840,12 +841,12 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("#### 1. Implementing jurisdictions")
             selected_series_countries = st.multiselect(
-                "Implementing Jurisdiction", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
+                "Select a country or group to analyze.", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
                 max_selections=10, key="timeseries_countries",
                 help="Select the countries or groups to be displayed (1-10).",
             )
             st.markdown("#### 2. Shared settings")
-            st.caption("Configure the general figure settings.")
+            st.caption("Configure the shared settings across charts.")
             timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
