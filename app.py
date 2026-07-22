@@ -578,7 +578,7 @@ if uploaded_file is not None or default_source.exists():
             4, build_default_config(raw_df, "World", "World", "defense OR military"),
         )
     tab_inspect, tab_decomposition, tab_timeseries, tab_methodology = st.tabs([
-        "Data inspection", "Visualize Decomposition", "Visualize Time-Series", "Methodology",
+        "🔎 Data inspection", "📊 Disaggregated View", "📈 Time-Series View", "📖 Methodology",
     ])
 
     # ------------------------------------------
