@@ -464,7 +464,7 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
     }[metric_choice]
     if compact_layout:
         compact_legend = dict(
-            orientation="h", yanchor="top", y=-0.20, xanchor="center", x=0.5,
+            orientation="h", yanchor="top", y=-0.20, xanchor="center", x=-0.5,
             font=dict(size=11), itemsizing="constant",
         )
         if "maxheight" in go.layout.Legend()._valid_props:
