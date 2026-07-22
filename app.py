@@ -471,7 +471,8 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
             compact_legend["maxheight"] = 0.14
         fig.update_layout(
             barmode="stack", hovermode="x unified", height=380,
-            paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=38, r=18, t=38, b=48),
+            #paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=38, r=18, t=38, b=48),
+            paper_bgcolor="white", plot_bgcolor="white", margin=dict(l=15, r=15, t=15, b=15),
             legend=compact_legend,
         )
     else:
