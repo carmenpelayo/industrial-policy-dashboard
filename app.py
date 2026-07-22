@@ -390,8 +390,23 @@ def build_default_config(df_source, title="", implementing_jurisdiction=None, ke
         "hs_2d": [], "cpc_2d": [], "policies": [], "sectors": [], "motives": [],
     }
 
+def smoothing_maximum(freq_choice):
+    """Return a useful rolling-window limit for the selected time frequency."""
+    return {"Daily": 100, "Monthly": 24, "Quarterly": 10, "Yearly": 10}[freq_choice]
+
+def render_smoothing_slider(freq_choice, key):
+    """Render a frequency-aware smoothing control and keep its state valid."""
+    maximum = smoothing_maximum(freq_choice)
+    if st.session_state.get(key, 1) > maximum:
+        st.session_state[key] = maximum
+    return st.slider(
+        "Smoothing (periods)", 1, maximum, 1, key=key,
+        help="A value of 1 leaves the series unchanged.",
+    )
+
 def build_visualization_figure(df_source, configs, disaggregation, freq_choice, metric_choice, smoothing):
-    """Create a one-to-four-panel visualization from fully resolved filters."""
+    """Create a one- or two-panel decomposition visualization."""
+    configs = configs[:2]
     freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
     metric_col = {
         "Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD",
@@ -450,6 +465,69 @@ def build_visualization_figure(df_source, configs, disaggregation, freq_choice, 
                      gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
     return fig
 
+def build_country_timeseries_figure(df_source, series_configs, metric_choice, event_date=None, event_level=None):
+    """Plot country totals as separate lines, without category allocation."""
+    metric_col = {
+        "Policy Count": None,
+        "Subsidy USD Amount": "Size of Subsidy (USD Million)",
+        "Trade Covered USD Amount": "Trade Covered (USD Million)",
+        "Combined USD Amount": "Total_USD_Value",
+    }[metric_choice]
+    freq_codes = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}
+    colors = [PRIMARY_COLORS["Electric Blue"], BBVA_AZURE] + ACCENT_COLORS
+    fig = go.Figure()
+
+    for index, config in enumerate(series_configs):
+        filtered = execute_filter_pipeline(df_source, config["filters"])
+        freq_code = freq_codes[config["frequency"]]
+        dates = config["filters"].get("dates", [])
+        if len(dates) == 2:
+            periods = pd.period_range(pd.to_datetime(dates[0]), pd.to_datetime(dates[1]), freq=freq_code)
+        elif not filtered.empty:
+            periods = pd.period_range(filtered["Announcement Date"].min(), filtered["Announcement Date"].max(), freq=freq_code)
+        else:
+            periods = pd.period_range("2010-01-01", "2025-12-31", freq=freq_code)
+
+        if filtered.empty:
+            values = pd.Series(0.0, index=periods)
+        else:
+            filtered = filtered.copy()
+            filtered["Period"] = filtered["Announcement Date"].dt.to_period(freq_code)
+            if metric_col is None:
+                values = filtered.groupby("Period").size().astype(float)
+            else:
+                values = filtered.groupby("Period")[metric_col].sum()
+            values = values.reindex(periods, fill_value=0.0)
+        if config["smoothing"] > 1:
+            values = values.rolling(config["smoothing"], min_periods=1).mean()
+
+        fig.add_trace(go.Scatter(
+            x=values.index.to_timestamp(), y=values.values, mode="lines", name=config["country"],
+            line=dict(color=colors[index % len(colors)], width=2.5),
+            hovertemplate=f"{config['country']}: %{{y}}<extra></extra>",
+        ))
+
+    if event_date is not None and event_level is not None:
+        fig.add_shape(
+            type="line", x0=pd.to_datetime(event_date), x1=pd.to_datetime(event_date),
+            y0=0, y1=event_level, xref="x", yref="y",
+            line=dict(color=GREYS["Grey-4"], width=2, dash="dash"),
+        )
+
+    axis_label = {
+        "Policy Count": "Policy Count", "Subsidy USD Amount": "Subsidy (USD Million)",
+        "Trade Covered USD Amount": "Trade covered (USD Million)", "Combined USD Amount": "Combined (USD Million)",
+    }[metric_choice]
+    fig.update_layout(
+        hovermode="x unified", height=550, paper_bgcolor="white", plot_bgcolor="white",
+        margin=dict(l=50, r=30, t=40, b=90),
+        legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5),
+    )
+    fig.update_xaxes(showline=True, linewidth=1, linecolor=GREYS["Grey-2"], tickangle=45, automargin=True)
+    fig.update_yaxes(title_text=axis_label, showline=True, linewidth=1, linecolor=GREYS["Grey-2"],
+                     gridcolor=GREYS["Grey-1"], gridwidth=0.5, automargin=True)
+    return fig
+
 # ==========================================
 # 6. STREAMLIT APP FRAMEWORK WORKSPACE
 # ==========================================
@@ -482,20 +560,14 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
-    inspector_defaults = build_default_config(
-        raw_df,
-        implementing_jurisdiction="United States of America",
-        keyword_search="defense OR military",
-        dates=[pd.Timestamp("2008-10-14").date(), pd.Timestamp("2025-12-12").date()],
-    )
     if not st.session_state.get("saved_subplot_configs"):
         st.session_state.saved_subplot_configs = {
             1: build_default_config(raw_df, "United States of America", "United States of America", "defense OR military"),
             2: build_default_config(raw_df, "European Union", "Group: EU-27", "defense OR military"),
-            3: build_default_config(raw_df, "China", "China", "defense OR military"),
-            4: build_default_config(raw_df, "World", "World", "defense OR military"),
         }
-    tab_inspect, tab_viz, tab_methodology = st.tabs(["🔎 Data inspection", "📊 Visualization", "❓ Methodology"])
+    tab_inspect, tab_decomposition, tab_timeseries, tab_methodology = st.tabs([
+        "Data inspection", "Visualize Decomposition", "Visualize Time-Series", "Methodology",
+    ])
 
     # ------------------------------------------
     # DATA INSPECTOR WORKSPACE TAB
@@ -505,8 +577,7 @@ if uploaded_file is not None or default_source.exists():
         with filter_col:
             st.markdown("### ⚙️ Configure the output table.")
             st.caption("Choose the interventions to include in the output table.")
-            inspector_config = render_inline_filters(raw_df, "inspector", master_ref=inspector_defaults, compact=True, include_title=False)
-            trigger_inspect = st.button("Generate Table", type="primary", use_container_width=True)
+            inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
             
         with plot_col:
             st.markdown("### ⭐ Results")
@@ -520,10 +591,10 @@ if uploaded_file is not None or default_source.exists():
     # ------------------------------------------
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
     # ------------------------------------------
-    with tab_viz:
+    with tab_decomposition:
         st.markdown("### Choose a visualization approach")
-        jurisdiction_tab, metric_tab, diy_tab = st.tabs([
-            "By Implementing Jurisdiction", "By Metric", "Do-It-Yourself",
+        metric_tab, jurisdiction_tab, diy_tab = st.tabs([
+            "By Country", "Across Countries", "Do-It-Yourself",
         ])
         chart_options = ["Sector", "Motive", "Policy Instrument", "Assessment Type", "Product (CPC v2.1 Sectors)", "Product (1-digit HS 2022)"]
         frequency_options = ["Daily", "Monthly", "Quarterly", "Yearly"]
@@ -534,12 +605,12 @@ if uploaded_file is not None or default_source.exists():
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
                 st.markdown("### 1. Select implementing jurisdictions")
-                selected_jurisdictions = st.multiselect("Jurisdictions to compare (1–4)", jurisdiction_options, default=jurisdiction_options[:4], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction is shown in its own chart using the same settings and filters.")
+                selected_jurisdictions = st.multiselect("Jurisdictions to compare (1–2)", jurisdiction_options, default=jurisdiction_options[:2], max_selections=2, key="jurisdiction_comparison_selection", help="Each jurisdiction is shown in its own chart using the same settings and filters.")
                 st.markdown("### 2. Configure shared settings and filters")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
-                jurisdiction_smoothing = st.slider("Smoothing (periods)", 1, 100, 1, key="jurisdiction_smoothing")
+                jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 shared_filters = render_inline_filters(raw_df, "jurisdiction_shared", compact=True, include_title=False, include_implementing=False)
             with plot_col:
                 st.markdown("### Results")
@@ -560,7 +631,7 @@ if uploaded_file is not None or default_source.exists():
                 metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_options, key="metric_jurisdiction")
                 st.markdown("### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
-                metric_smoothing = st.slider("Smoothing (periods)", 1, 100, 1, key="metric_smoothing")
+                metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
                 metric_dates = st.date_input("Announcement Date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], key="metric_dates")
                 metric_measure = st.selectbox("Measure", measure_options, index=3, key="metric_measure")
                 metric_keyword = st.text_input("Keyword Search", key="metric_keyword", help="Use parentheses plus AND/OR to combine complete words or phrases.")
@@ -568,18 +639,24 @@ if uploaded_file is not None or default_source.exists():
                     metric_extra_filters = render_inline_filters(raw_df, "metric_extra", compact=True, include_title=False, include_implementing=False, include_dates=False, include_keyword=False)
             with plot_col:
                 st.markdown("### Results")
-                chart_defaults = ["Sector", "Motive", "Policy Instrument", "Assessment Type"]
+                chart_defaults = ["Sector", "Motive"]
                 metric_chart_config = metric_extra_filters.copy()
                 metric_chart_config.update({"imp_jurisdiction": [metric_jurisdiction], "dates": metric_dates, "keyword_search": metric_keyword})
-                for row_number, row_defaults in enumerate([chart_defaults[:2], chart_defaults[2:]]):
-                    chart_columns = st.columns(2)
-                    for column_number, (chart_col, default_split) in enumerate(zip(chart_columns, row_defaults)):
-                        chart_index = row_number * 2 + column_number + 1
-                        with chart_col:
-                            chart_split = st.selectbox(f"Chart {chart_index}: split series by", chart_options, index=chart_options.index(default_split), key=f"metric_chart_split_{chart_index}")
-                            chart_config = metric_chart_config.copy()
-                            chart_config["title"] = f"{metric_jurisdiction} — {chart_split}"
-                            st.plotly_chart(build_visualization_figure(raw_df, [chart_config], chart_split, metric_frequency, metric_measure, metric_smoothing), use_container_width=True)
+                first_chart_col, second_chart_col = st.columns(2)
+                with first_chart_col:
+                    first_split = st.selectbox("Chart 1: split series by", chart_options, index=chart_options.index(chart_defaults[0]), key="metric_chart_split_1")
+                    first_config = metric_chart_config.copy()
+                    first_config["title"] = f"{metric_jurisdiction} — {first_split}"
+                    st.plotly_chart(build_visualization_figure(raw_df, [first_config], first_split, metric_frequency, metric_measure, metric_smoothing), use_container_width=True)
+                with second_chart_col:
+                    second_options = [option for option in chart_options if option != first_split]
+                    second_default = chart_defaults[1] if chart_defaults[1] in second_options else second_options[0]
+                    if st.session_state.get("metric_chart_split_2") == first_split:
+                        st.session_state["metric_chart_split_2"] = second_default
+                    second_split = st.selectbox("Chart 2: split series by", second_options, index=second_options.index(second_default), key="metric_chart_split_2")
+                    second_config = metric_chart_config.copy()
+                    second_config["title"] = f"{metric_jurisdiction} — {second_split}"
+                    st.plotly_chart(build_visualization_figure(raw_df, [second_config], second_split, metric_frequency, metric_measure, metric_smoothing), use_container_width=True)
 
         with diy_tab:
             filter_col, plot_col = st.columns([1, 3])
@@ -592,19 +669,19 @@ if uploaded_file is not None or default_source.exists():
             ])
             freq_choice = st.selectbox("Time frequency", ["Daily", "Monthly", "Quarterly", "Yearly"], index=3)
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
-            smoothing = st.slider("Smoothing (periods)", min_value=1, max_value=100, value=1, help="A value of 1 leaves the series unchanged.")
+            smoothing = render_smoothing_slider(freq_choice, "diy_smoothing")
 
             st.markdown("### 2️⃣ Customize the subplots.")
             st.caption("Now configure the individual subplots to be displayed.")
-            chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
+            chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2"], help="Configure one chart at a time. Chart 2 inherits Chart 1's settings by default.")
             chart_number = int(chart_to_customize.split()[-1])
             saved_configs = st.session_state.get("saved_subplot_configs", {})
-            override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2", "Chart 3": "v_p3", "Chart 4": "v_p4"}[chart_to_customize]
+            override_prefix = {"Chart 1": "v_p1", "Chart 2": "v_p2"}[chart_to_customize]
             # Saved child settings take precedence over Chart 1 inheritance.
             # A child inherits Chart 1 only until it has been saved once.
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
-            st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
+            st.caption("Save each chart when it is ready. Chart 2 begins with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
@@ -627,7 +704,7 @@ if uploaded_file is not None or default_source.exists():
 
         saved_configs = st.session_state.saved_subplot_configs
         chart_numbers = []
-        for number in range(1, 5):
+        for number in range(1, 3):
             if number in saved_configs:
                 chart_numbers.append(number)
             else:
@@ -707,6 +784,61 @@ if uploaded_file is not None or default_source.exists():
         else:
             with plot_col:
                 st.info("Configure Chart 1 and select **Save chart** to start the figure.")
+
+    # ------------------------------------------
+    # MULTI-COUNTRY TIME-SERIES TAB
+    # ------------------------------------------
+    with tab_timeseries:
+        filter_col, plot_col = st.columns([1, 3])
+        with filter_col:
+            st.markdown("### 1. Select implementing jurisdictions")
+            selected_series_countries = st.multiselect(
+                "Countries to plot", jurisdiction_options, default=jurisdiction_options[:2],
+                max_selections=4, key="timeseries_countries",
+                help="Each selected country has its own filters, frequency, and smoothing.",
+            )
+            timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
+            event_enabled = st.checkbox("Add a dashed event line", key="timeseries_event_enabled")
+            event_date = event_level = None
+            if event_enabled:
+                event_date = st.date_input(
+                    "Event date", raw_df["Announcement Date"].min().date(), key="timeseries_event_date",
+                )
+                event_level = st.number_input(
+                    "Event line level", value=1.0, step=1.0, key="timeseries_event_level",
+                    help="The dashed line is drawn from zero to this y-axis level.",
+                )
+
+            series_configs = []
+            for index, country in enumerate(selected_series_countries, start=1):
+                series_key = re.sub(r"\W+", "_", country)
+                with st.expander(f"{index}. {country}", expanded=index == 1):
+                    frequency = st.selectbox(
+                        "Time frequency", frequency_options, index=3,
+                        key=f"timeseries_frequency_{series_key}",
+                    )
+                    smoothing = render_smoothing_slider(frequency, f"timeseries_smoothing_{series_key}")
+                    filters = render_inline_filters(
+                        raw_df, f"timeseries_filters_{series_key}", compact=True,
+                        include_title=False, include_implementing=False,
+                    )
+                    filters["imp_jurisdiction"] = [country]
+                    series_configs.append({
+                        "country": country, "filters": filters,
+                        "frequency": frequency, "smoothing": smoothing,
+                    })
+
+        with plot_col:
+            st.markdown("### Results")
+            if series_configs:
+                st.plotly_chart(
+                    build_country_timeseries_figure(
+                        raw_df, series_configs, timeseries_measure, event_date, event_level,
+                    ),
+                    use_container_width=True,
+                )
+            else:
+                st.info("Select at least one implementing jurisdiction to display a time series.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
