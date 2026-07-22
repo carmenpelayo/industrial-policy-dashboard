@@ -596,7 +596,7 @@ if uploaded_file is not None or default_source.exists():
             4, build_default_config(raw_df, "World", "World", "defense OR military"),
         )
     tab_inspect, tab_decomposition, tab_timeseries, tab_methodology = st.tabs([
-        "Data inspection", "Visualize Decomposition", "Visualize Time-Series", "Methodology",
+        "🔎 Data Inspection", "📊 Disaggregated View", "📈 Time-Series View", "📖 Annex",
     ])
 
     # ------------------------------------------
@@ -605,12 +605,11 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### ⚙️ Configure the output table.")
+            st.markdown("### Configure the output table")
             st.caption("Choose the interventions to include in the output table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False)
             
         with plot_col:
-            st.markdown("### ⭐ Results")
             ins_df = execute_filter_pipeline(raw_df, inspector_config)
             st.metric("Matching interventions", f"{len(ins_df):,}")
             drop_fields = ["NEW", "Entry ID", "Was First Reported Before This Inventory Month?", "Initial Assessment (Change Relative to 1 Jan 2009)", "Affected List"]
@@ -646,7 +645,6 @@ if uploaded_file is not None or default_source.exists():
                 with st.expander("More filters"):
                     shared_filters = render_inline_filters(raw_df, "jurisdiction_shared", compact=True, include_title=False, include_implementing=False, include_dates=False, advanced_expander=False)
             with plot_col:
-                st.markdown("### Results")
                 if selected_jurisdictions:
                     jurisdiction_configs = []
                     for jurisdiction in selected_jurisdictions:
@@ -671,7 +669,6 @@ if uploaded_file is not None or default_source.exists():
                 with st.expander("More filters"):
                     metric_extra_filters = render_inline_filters(raw_df, "metric_extra", compact=True, include_title=False, include_implementing=False, include_dates=False, include_keyword=False, advanced_expander=False)
             with plot_col:
-                st.markdown("### Results")
                 chart_defaults = ["Sector", "Motive", "Policy Instrument", "Assessment Type"]
                 metric_chart_config = metric_extra_filters.copy()
                 metric_chart_config.update({"imp_jurisdiction": [metric_jurisdiction], "dates": metric_dates, "keyword_search": metric_keyword})
@@ -698,7 +695,7 @@ if uploaded_file is not None or default_source.exists():
         with diy_tab:
             filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### 1️⃣ Configure the general figure settings.")
+            st.markdown("### 1. Configure the general figure settings")
             st.caption("Set the general figure settings first.")
             disaggregation = st.selectbox("Split series by", [
                 "Sector", "Motive", "Policy Instrument", "Assessment Type",
@@ -708,7 +705,7 @@ if uploaded_file is not None or default_source.exists():
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = render_smoothing_slider(freq_choice, "diy_smoothing")
 
-            st.markdown("### 2️⃣ Customize the subplots.")
+            st.markdown("### 2. Customize the subplots")
             st.caption("Now configure the individual subplots to be displayed.")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
             chart_number = int(chart_to_customize.split()[-1])
@@ -722,7 +719,6 @@ if uploaded_file is not None or default_source.exists():
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
-            st.markdown("### ⭐ Results")
             freq_code = {"Daily": "D", "Monthly": "M", "Quarterly": "Q", "Yearly": "Y"}[freq_choice]
             metric_col = {"Policy Count": "Allocated_Count", "Subsidy USD Amount": "Allocated_Subsidy_USD", "Trade Covered USD Amount": "Allocated_Trade_USD", "Combined USD Amount": "Allocated_Combined_USD"}[metric_choice]
             
@@ -820,7 +816,8 @@ if uploaded_file is not None or default_source.exists():
             
             with plot_col:
                 st.plotly_chart(fig, use_container_width=True)
-                st.caption("Tip: click a legend item to hide or show it; double-click an item to isolate it in the chart.")
+                st.caption("Click a legend item to hide or show it. Double-click an item to isolate it in the chart.")
+                st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
         else:
             with plot_col:
                 st.info("Configure Chart 1 and select **Save chart** to start the figure.")
@@ -880,7 +877,6 @@ if uploaded_file is not None or default_source.exists():
                     })
 
         with plot_col:
-            st.markdown("### Results")
             if series_configs:
                 st.plotly_chart(
                     build_country_timeseries_figure(
@@ -889,6 +885,7 @@ if uploaded_file is not None or default_source.exists():
                     ),
                     use_container_width=True,
                 )
+                st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
             else:
                 st.info("Select at least one implementing jurisdiction to display a time series.")
 
