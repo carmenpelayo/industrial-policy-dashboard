@@ -323,8 +323,6 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     dt = st.date_input("Announcement Date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="Data is available since 2008.") if include_dates else get_fallback("dates", default_dates)
-    if include_dates:
-        st.caption("Data is available since 2008.")
     imp = st.multiselect("Implementing Jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected Jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
@@ -614,7 +612,7 @@ if uploaded_file is not None or default_source.exists():
     with tab_inspect:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### Configure the output table")
+            st.markdown("#### Configuration")
             st.caption("Choose the interventions to include in the output table.")
             inspector_config = render_inline_filters(raw_df, "inspector", compact=True, include_title=False, default_announcement_dates=INSPECTOR_DEFAULT_ANNOUNCEMENT_DATES)
             
@@ -630,7 +628,7 @@ if uploaded_file is not None or default_source.exists():
     # MATRIX DASHBOARD GRID VISUALIZATION TAB
     # ------------------------------------------
     with tab_decomposition:
-        st.markdown("### Choose a visualization approach")
+        st.markdown("#### Choose a visualization approach")
         metric_tab, jurisdiction_tab, diy_tab = st.tabs([
             "By Country", "Across Countries", "Do-It-Yourself",
         ])
@@ -643,14 +641,13 @@ if uploaded_file is not None or default_source.exists():
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("### 1. Select implementing jurisdictions")
+                st.markdown("#### 1. Select implementing jurisdictions")
                 selected_jurisdictions = st.multiselect("Jurisdictions to compare (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
-                st.markdown("### 2. Configure shared settings and filters")
+                st.markdown("#### 2. Configure shared settings and filters")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
                 jurisdiction_measure = st.selectbox("Measure", measure_options, index=3, key="jurisdiction_measure")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
                 jurisdiction_dates = st.date_input("Announcement Date", visualization_dates, min_value=visualization_dates[0], max_value=visualization_dates[1], key="jurisdiction_dates", help="Data is available since 2008.")
-                st.caption("Data is available since 2008.")
                 jurisdiction_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="jurisdiction_frequency")
                 jurisdiction_smoothing = render_smoothing_slider(jurisdiction_frequency, "jurisdiction_smoothing")
                 with st.expander("More filters"):
@@ -669,9 +666,9 @@ if uploaded_file is not None or default_source.exists():
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("### 1. Select an implementing jurisdiction")
+                st.markdown("#### 1. Select an implementing jurisdiction")
                 metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
-                st.markdown("### 2. Configure shared settings")
+                st.markdown("#### 2. Configure shared settings")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
                 metric_smoothing = render_smoothing_slider(metric_frequency, "metric_smoothing")
                 visualization_dates = [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()]
@@ -718,7 +715,7 @@ if uploaded_file is not None or default_source.exists():
             metric_choice = st.selectbox("Measure", ["Policy Count", "Subsidy USD Amount", "Trade Covered USD Amount", "Combined USD Amount"], index=3)
             smoothing = render_smoothing_slider(freq_choice, "diy_smoothing")
 
-            st.markdown("### 2. Customize the subplots")
+            st.markdown("#### 2. Customize the subplots")
             st.caption("Now configure the individual subplots to be displayed.")
             chart_to_customize = st.selectbox("Chart to customize", ["Chart 1", "Chart 2", "Chart 3", "Chart 4"], help="Configure one chart at a time. New charts inherit Chart 1's settings by default.")
             chart_number = int(chart_to_customize.split()[-1])
@@ -728,7 +725,6 @@ if uploaded_file is not None or default_source.exists():
             # A child inherits Chart 1 only until it has been saved once.
             child_master = saved_configs.get(chart_number) or saved_configs.get(1) or saved_override_config("v_p1")
             selected_override = render_inline_filters(raw_df, override_prefix, master_ref=child_master, compact=True)
-            st.caption("Save each chart when it is ready. Charts 2–4 begin with Chart 1's settings, which you can then change.")
             save_chart = st.button("Save chart", type="primary", use_container_width=True)
 
         with plot_col:
@@ -843,13 +839,13 @@ if uploaded_file is not None or default_source.exists():
     with tab_timeseries:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("### 1. Select implementing jurisdictions")
+            st.markdown("#### 1. Select implementing jurisdictions")
             selected_series_countries = st.multiselect(
                 "Countries or groups to plot", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
                 max_selections=10, key="timeseries_countries",
                 help="Each selected country or group is plotted as its own line.",
             )
-            st.markdown("### 2. Select shared settings")
+            st.markdown("#### 2. Select shared settings")
             timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
             timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
             timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
