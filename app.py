@@ -323,7 +323,7 @@ def render_inline_filters(df_source, key_prefix, master_ref=None, compact=False,
     default_dates = default_announcement_dates or announcement_dates
     chart_title = st.text_input("Chart title", get_fallback("title", ""), key=f"{key_prefix}_title") if include_title else ""
     dt = st.date_input("Announcement date", get_fallback("dates", default_dates), min_value=announcement_dates[0], max_value=announcement_dates[1], key=f"{key_prefix}_dt", help="The dataset contains interventions announced after 13/10/2008.") if include_dates else get_fallback("dates", default_dates)
-    imp = st.multiselect("Implementing jurisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
+    imp = st.multiselect("Implementing furisdictions", all_imp, default=get_fallback("imp_jurisdiction", []), key=f"{key_prefix}_imp") if include_implementing else get_fallback("imp_jurisdiction", [])
     aff = st.multiselect("Affected jurisdictions", all_aff, default=get_fallback("aff_jurisdiction", []), key=f"{key_prefix}_aff")
     kw = st.text_input(
         "Keyword search", get_fallback("keyword_search", ""), key=f"{key_prefix}_kw",
@@ -398,13 +398,15 @@ def smoothing_maximum(freq_choice):
     """Return a useful rolling-window limit for the selected time frequency."""
     return {"Daily": 100, "Monthly": 24, "Quarterly": 10, "Yearly": 10}[freq_choice]
 
-def render_smoothing_slider(freq_choice, key):
+def render_smoothing_slider(freq_choice, key, default_value=1):
     """Render a frequency-aware smoothing control and keep its state valid."""
     maximum = smoothing_maximum(freq_choice)
-    if st.session_state.get(key, 1) > maximum:
+    if st.session_state.get(key, default_value) > maximum:
         st.session_state[key] = maximum
+    if key not in st.session_state:
+        st.session_state[key] = min(default_value, maximum)
     return st.slider(
-        "Smoothing (periods)", 1, maximum, 1, key=key,
+        "Smoothing (periods)", 1, maximum, key=key,
         help="A value of 1 leaves the series unchanged.",
     )
 
@@ -589,11 +591,13 @@ source_file = uploaded_file if uploaded_file is not None else default_source
 if uploaded_file is not None or default_source.exists():
     raw_df = load_source_data(source_file)
     if not st.session_state.get("saved_subplot_configs"):
+        diy_default_dates = [pd.Timestamp("2020-01-01").date(), pd.Timestamp("2025-12-12").date()]
+        diy_default_keywords = "AI OR artificial intelligence OR semiconductor OR semiconductors OR chip OR chips"
         st.session_state.saved_subplot_configs = {
-            1: build_default_config(raw_df, "United States of America", "United States of America", "defense OR military"),
-            2: build_default_config(raw_df, "European Union", "Group: EU-27", "defense OR military"),
-            3: build_default_config(raw_df, "China", "China", "defense OR military"),
-            4: build_default_config(raw_df, "World", "World", "defense OR military"),
+            1: build_default_config(raw_df, "United States of America", "United States of America", diy_default_keywords, diy_default_dates),
+            2: build_default_config(raw_df, "European Union", "Group: EU-27", diy_default_keywords, diy_default_dates),
+            3: build_default_config(raw_df, "China", "China", diy_default_keywords, diy_default_dates),
+            4: build_default_config(raw_df, "World", "World", diy_default_keywords, diy_default_dates),
         }
     else:
         st.session_state.saved_subplot_configs.setdefault(
@@ -641,9 +645,9 @@ if uploaded_file is not None or default_source.exists():
         with jurisdiction_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Implementing jurisdictions")
+                st.markdown("#### 1. Implementing Jurisdictions")
                 st.caption("Select the countries or groups to analyze.")
-                selected_jurisdictions = st.multiselect("Implementing jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
+                selected_jurisdictions = st.multiselect("Implementing Jurisdictions (1–4)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"], max_selections=4, key="jurisdiction_comparison_selection", help="Each jurisdiction or group is shown in its own chart using the same settings and filters.")
                 st.markdown("#### 2. General settings")
                 st.caption("Set the general figure settings.")
                 jurisdiction_split = st.selectbox("Split series by", chart_options, key="jurisdiction_split")
@@ -663,14 +667,14 @@ if uploaded_file is not None or default_source.exists():
                         jurisdiction_configs.append(config)
                     st.plotly_chart(build_visualization_figure(raw_df, jurisdiction_configs, jurisdiction_split, jurisdiction_frequency, jurisdiction_measure, jurisdiction_smoothing), use_container_width=True)
                 else:
-                    st.info("Select at least one implementing jurisdiction to display the comparison figure.")
+                    st.info("Select at least one Implementing Jurisdiction to display the comparison figure.")
 
         with metric_tab:
             filter_col, plot_col = st.columns([1, 3])
             with filter_col:
-                st.markdown("#### 1. Implementing jurisdiction")
+                st.markdown("#### 1. Implementing Jurisdiction")
                 st.caption("Select a country or group to analyze.")
-                metric_jurisdiction = st.selectbox("Implementing jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
+                metric_jurisdiction = st.selectbox("Implementing Jurisdiction", jurisdiction_selection_options, index=jurisdiction_selection_options.index("Spain"), key="metric_jurisdiction")
                 st.markdown("#### 2. General settings")
                 st.caption("Configure the filters shared across charts.")
                 metric_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="metric_frequency")
@@ -842,7 +846,7 @@ if uploaded_file is not None or default_source.exists():
     with tab_timeseries:
         filter_col, plot_col = st.columns([1, 3])
         with filter_col:
-            st.markdown("#### 1. Implementing jurisdictions")
+            st.markdown("#### 1. Implementing Jurisdictions")
             st.caption("Select the countries or groups to analyze (1-10).")
             selected_series_countries = st.multiselect(
                 "Implementing jurisdiction(s)", jurisdiction_selection_options, default=["Group: EU-27", "United States of America", "China", "Russia"],
@@ -850,15 +854,15 @@ if uploaded_file is not None or default_source.exists():
             )
             st.markdown("#### 2. General settings")
             st.caption("Configure the settings shared across series.")
-            timeseries_measure = st.selectbox("Value", measure_options, index=0, key="timeseries_measure")
-            timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=3, key="timeseries_frequency")
-            timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing")
+            timeseries_measure = st.selectbox("Value", measure_options, index=3, key="timeseries_measure")
+            timeseries_frequency = st.selectbox("Time frequency", frequency_options, index=1, key="timeseries_frequency")
+            timeseries_smoothing = render_smoothing_slider(timeseries_frequency, "timeseries_smoothing", default_value=12)
             timeseries_dates = st.date_input(
                 "Announcement date", [raw_df["Announcement Date"].min().date(), raw_df["Announcement Date"].max().date()], min_value=raw_df["Announcement Date"].min().date(), max_value=raw_df["Announcement Date"].max().date(),
                 key="timeseries_dates",
                 help="The dataset contains interventions announced after 13/10/2008.",
             )
-            timeseries_normalize = st.checkbox("Normalize", key="timeseries_normalize", help="Express every series as standard deviations from its mean.")
+            timeseries_normalize = st.checkbox("Normalize", value=True, key="timeseries_normalize", help="Express every series as standard deviations from its mean.")
 
             if "timeseries_custom_events" not in st.session_state:
                 st.session_state.timeseries_custom_events = {}
@@ -904,7 +908,7 @@ if uploaded_file is not None or default_source.exists():
                 )
                 st.caption("Click on the buttons in the top right corner of the output figure to zoom, view in fullscreen, or download as PNG.")
             else:
-                st.info("Select at least one implementing jurisdiction to display a time series.")
+                st.info("Select at least one Implementing Jurisdiction to display a time series.")
 
     # ------------------------------------------
     # METHODOLOGY TAB
