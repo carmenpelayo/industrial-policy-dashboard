@@ -836,7 +836,11 @@ if uploaded_file is not None or default_source.exists():
                     if event_name not in st.session_state.timeseries_selected_events:
                         st.session_state.timeseries_selected_events.append(event_name)
                     st.session_state.timeseries_event_name_input = ""
-
+            st.markdown("#### Custom events")
+            available_events = st.session_state.timeseries_custom_events
+            selected_event_names = st.multiselect(
+                "Events to display", options=list(available_events.keys()), key="timeseries_selected_events",
+            )
             with st.container():
                 st.markdown("#### Add Custom Event")
                 st.text_input("Event Name", key="timeseries_event_name_input")
